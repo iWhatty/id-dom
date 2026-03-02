@@ -1,17 +1,17 @@
 {
-  "name": "dom-id",
+  "name": "id-dom",
   "version": "0.0.1",
   "description": "Deterministic DOM element getters by ID (typed, tiny, modern).",
   "author": "DR.WATT",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
-  "main": "./dist/dom-id.cjs",
-  "module": "./dist/dom-id.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "exports": {
     ".": {
-      "import": "./dist/dom-id.js",
-      "require": "./dist/dom-id.cjs",
-      "default": "./dist/dom-id.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     }
   },
   "sideEffects": false,

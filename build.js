@@ -1,15 +1,15 @@
 // ./build.js
 //
 // Builds distributable variants:
-//  - dist/dom-id.js      (ESM + sourcemap)
-//  - dist/dom-id.min.js  (ESM minified)
-//  - dist/dom-id.cjs     (CommonJS)
+//  - dist/index.js      (ESM + sourcemap)
+//  - dist/index.min.js  (ESM minified)
+//  - dist/index.cjs     (CommonJS)
 
 import { build } from 'esbuild'
 import { rmSync, mkdirSync } from 'node:fs'
 
 /** Entry file */
-const SRC = 'src/dom-id.js'
+const SRC = 'src/id-dom.js'
 
 /** Output directory */
 const OUT_DIR = 'dist'
@@ -45,9 +45,9 @@ const out = name => `${OUT_DIR}/${name}`
  * >}
  */
 const variants = [
-  { file: 'dom-id.js', format: ESM, sourcemap: true },
-  { file: 'dom-id.min.js', format: ESM, minify: true },
-  { file: 'dom-id.cjs', format: CJS, sourcemap: true }
+  { file: 'index.js', format: ESM, sourcemap: true },
+  { file: 'index.min.js', format: ESM, minify: true },
+  { file: 'index.cjs', format: CJS, sourcemap: true }
 ]
 
 /**

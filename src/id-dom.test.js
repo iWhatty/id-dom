@@ -1,6 +1,6 @@
 // dom-id.test.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import dom, { byId, tag, createDom } from './dom-id.js'
+import dom, { byId, tag, createDom } from './id-dom.js'
 
 describe('dom-id', () => {
   beforeEach(() => {

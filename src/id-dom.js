@@ -1,5 +1,5 @@
-// dom-id.js
-// dom-id — deterministic DOM element getters by ID (typed, tiny, modern)
+// id-dom.js
+// id-dom — deterministic DOM element getters by ID (typed, tiny, modern)
 //
 // Goals:
 // - Prefer getElementById (fast, unambiguous)
@@ -147,7 +147,7 @@ function fmtId(id) {
  * @param {string} expected
  */
 function missingElError(id, expected) {
-    return new Error(`dom-id: missing ${expected} element ${fmtId(id)}`)
+    return new Error(`id-dom: missing ${expected} element ${fmtId(id)}`)
 }
 
 /**
@@ -156,7 +156,7 @@ function missingElError(id, expected) {
  * @param {string} got
  */
 function wrongTypeError(id, expected, got) {
-    return new Error(`dom-id: expected ${expected} for ${fmtId(id)}, got ${got}`)
+    return new Error(`id-dom: expected ${expected} for ${fmtId(id)}, got ${got}`)
 }
 
 /**

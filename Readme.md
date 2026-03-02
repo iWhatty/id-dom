@@ -54,6 +54,8 @@ Using `getElementById` is:
 
 …and with typed getters, you immediately know whether you have a `HTMLButtonElement`, `HTMLInputElement`, etc.
 
+Scoped lookups safely escape IDs when using `querySelector`, ensuring stability even for edge-case IDs (e.g. starting with digits).
+
 ---
 
 ## API
@@ -237,7 +239,8 @@ Modern browsers supporting:
 
 * `getElementById`
 * `querySelector`
-* `CSS.escape`
+
+`CSS.escape` is used when available. A safe internal fallback is provided for environments (e.g. some jsdom builds) where it is missing.
 
 ---
 
