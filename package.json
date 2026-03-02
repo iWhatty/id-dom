@@ -12,6 +12,10 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs",
       "default": "./dist/index.js"
+    },
+    "./min": {
+      "import": "./dist/index.min.js",
+      "default": "./dist/index.min.js"
     }
   },
   "sideEffects": false,
