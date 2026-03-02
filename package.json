@@ -26,12 +26,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/iWhatty/dom-id.git"
+    "url": "git+https://github.com/iWhatty/id-dom.git"
   },
   "bugs": {
-    "url": "https://github.com/iWhatty/dom-id/issues"
+    "url": "https://github.com/iWhatty/id-dom/issues"
   },
-  "homepage": "https://github.com/iWhatty/dom-id#readme",
+  "homepage": "https://github.com/iWhatty/id-dom#readme",
   "keywords": [
     "dom",
     "getelementbyid",
