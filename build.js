@@ -27,7 +27,8 @@ const CJS = 'cjs'
 const baseConfig = {
   entryPoints: [SRC],
   bundle: false,
-  target: TARGET
+  target: TARGET,
+  platform: 'neutral',
 }
 
 /**

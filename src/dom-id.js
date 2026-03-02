@@ -52,6 +52,63 @@ function hasQuerySelector(v) {
     return !!v && typeof v === 'object' && typeof v.querySelector === 'function'
 }
 
+
+const SAFE_ID_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/
+const NEEDS_START_ESCAPE_RE = /^(?:\d|-\d)/
+
+/**
+ * Minimal CSS.escape fallback for environments where CSS.escape is missing (e.g. some jsdom builds).
+ * We only need to safely build `#${id}` selectors.
+ *
+ * @param {string} id
+ */
+function cssEscape(id) {
+  const s = String(id)
+
+  // Prefer native when available
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(s)
+  }
+
+  // Fast path: most app IDs are already safe
+  if (!NEEDS_START_ESCAPE_RE.test(s) && SAFE_ID_RE.test(s)) return s
+
+  // One-pass escape:
+  // - Escape any char outside a conservative "safe" set
+  // - Also escape the start if it begins with a digit OR "-<digit>"
+  let out = ''
+  for (let i = 0; i < s.length; ) {
+    const cp = s.codePointAt(i)
+    const ch = String.fromCodePoint(cp)
+
+    const isAsciiSafe =
+      (cp >= 48 && cp <= 57) || // 0-9
+      (cp >= 65 && cp <= 90) || // A-Z
+      (cp >= 97 && cp <= 122) || // a-z
+      cp === 95 || // _
+      cp === 45 // -
+
+    const needsStartEscape =
+      i === 0 && ((cp >= 48 && cp <= 57) || (cp === 45 && s.length > 1 && s.codePointAt(1) >= 48 && s.codePointAt(1) <= 57))
+
+    if (!needsStartEscape && (isAsciiSafe || cp >= 0x00A0)) {
+      // allow non-ascii chars directly (common CSS ident behavior)
+      out += ch
+    } else if (cp === 45 && i === 0 && s.length > 1 && s.codePointAt(1) >= 48 && s.codePointAt(1) <= 57) {
+      // "-<digit>" start: escaping just the leading hyphen is a simple fix
+      out += '\\-'
+    } else {
+      // hex escape + trailing space is safest
+      out += `\\${cp.toString(16).toUpperCase()} `
+    }
+
+    i += ch.length
+  }
+
+  return out
+}
+
+
 /**
  * Resolve an element by id from a "root".
  * Supports:
@@ -69,7 +126,7 @@ function getById(root, id) {
 
     // ShadowRoot/DocumentFragment/Element don’t have getElementById
     if (hasQuerySelector(root)) {
-        const sel = `#${CSS.escape(id)}`
+        const sel = `#${cssEscape(id)}`
         const el = root.querySelector(sel)
         return el instanceof HTMLElement ? el : null
     }
