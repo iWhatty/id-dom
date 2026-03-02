@@ -1,6 +1,6 @@
 {
   "name": "id-dom",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Deterministic DOM element getters by ID (typed, tiny, modern).",
   "author": "DR.WATT",
   "license": "SEE LICENSE IN LICENSE",

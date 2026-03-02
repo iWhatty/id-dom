@@ -1,8 +1,8 @@
-# dom-id
+# id-dom
 
 **Deterministic DOM element getters by ID (typed, tiny, modern).**
 
-`dom-id` is a small utility for grabbing DOM references safely **by `id`**, with predictable behavior:
+`id-dom` is a small utility for grabbing DOM references safely **by `id`**, with predictable behavior:
 
 * ✅ **Typed getters** (`button('saveBtn')`, `input('name')`, etc.)
 * ✅ **Strict or optional** mode (`throw` vs `null`)
@@ -18,7 +18,7 @@ This is deliberately **not** a selector framework — it’s a tiny “ID-first�
 ## Install
 
 ```bash
-npm install dom-id
+npm install id-dom
 ```
 
 ---
@@ -26,7 +26,7 @@ npm install dom-id
 ## Quick Start
 
 ```js
-import dom from 'dom-id'
+import dom from 'id-dom'
 
 const saveBtn = dom.button('saveBtn') // throws if missing or wrong type
 saveBtn.addEventListener('click', save)
@@ -68,7 +68,7 @@ The default export is a scoped instance using `document` (when available) with *
 * wrong type/tag → **throws**
 
 ```js
-import dom from 'dom-id'
+import dom from 'id-dom'
 
 const name = dom.input('nameInput')
 const submit = dom.button('submitBtn')
@@ -84,7 +84,7 @@ Create a scoped instance that searches within a root:
 * `ShadowRoot` / `Element` (uses `querySelector(#id)` fallback)
 
 ```js
-import { createDom } from 'dom-id'
+import { createDom } from 'id-dom'
 
 const d = createDom(document, { mode: 'null', warn: true })
 
@@ -110,7 +110,7 @@ type DomMode = 'throw' | 'null'
 Generic typed lookup:
 
 ```js
-import { byId } from 'dom-id'
+import { byId } from 'id-dom'
 
 const btn = byId('saveBtn', HTMLButtonElement)
 ```
@@ -129,7 +129,7 @@ const maybeBtn2 = byId.opt('saveBtn', HTMLButtonElement)
 Tag-based validation for semantic elements:
 
 ```js
-import { tag } from 'dom-id'
+import { tag } from 'id-dom'
 
 const main = tag('appMain', 'main')
 ```
@@ -184,7 +184,7 @@ dom.canvas.opt('game')
 ### Throwing (default)
 
 ```js
-import dom from 'dom-id'
+import dom from 'id-dom'
 
 dom.button('missing') // throws
 ```
@@ -192,7 +192,7 @@ dom.button('missing') // throws
 ### Null-returning mode
 
 ```js
-import { createDom } from 'dom-id'
+import { createDom } from 'id-dom'
 
 const d = createDom(document, { mode: 'null' })
 
@@ -221,7 +221,7 @@ createDom(document, { mode: 'null', warn: true })
 ## Shadow DOM / Scoped Roots
 
 ```js
-import { createDom } from 'dom-id'
+import { createDom } from 'id-dom'
 
 const host = document.querySelector('#widget')
 const shadow = host.attachShadow({ mode: 'open' })
