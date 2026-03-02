@@ -6,6 +6,7 @@
 
 * ✅ **Typed getters** (`button('saveBtn')`, `input('name')`, etc.)
 * ✅ **Strict or optional** mode (`throw` vs `null`)
+* ✅ **Short optional alias** (`.opt`)
 * ✅ **Scopable** to a root (`document`, `ShadowRoot`, or an `Element`)
 * ✅ **Centralized error handling** (`onError`, optional `warn`)
 * ✅ **Zero deps**
@@ -31,11 +32,14 @@ const saveBtn = dom.button('saveBtn') // throws if missing or wrong type
 saveBtn.addEventListener('click', save)
 ```
 
-Optional access (never throws):
+Optional access (never throws for missing/wrong-type):
 
 ```js
 const debug = dom.div.optional('debugPanel')
 debug?.append('hello')
+
+// short alias
+const maybeCanvas = dom.canvas.opt('game')
 ```
 
 ---
@@ -109,10 +113,11 @@ import { byId } from 'dom-id'
 const btn = byId('saveBtn', HTMLButtonElement)
 ```
 
-Optional variant:
+Optional variants (never throw for missing/wrong-type):
 
 ```js
 const maybeBtn = byId.optional('saveBtn', HTMLButtonElement)
+const maybeBtn2 = byId.opt('saveBtn', HTMLButtonElement)
 ```
 
 ---
@@ -127,10 +132,11 @@ import { tag } from 'dom-id'
 const main = tag('appMain', 'main')
 ```
 
-Optional variant:
+Optional variants:
 
 ```js
 const maybeMain = tag.optional('appMain', 'main')
+const maybeMain2 = tag.opt('appMain', 'main')
 ```
 
 ---
@@ -154,10 +160,11 @@ From `dom` (and any `createDom()` instance):
 * `template(id)` → `HTMLTemplateElement`
 * `svg(id)` → `SVGSVGElement`
 
-Each also has an `.optional` form:
+Each also has:
 
 ```js
 dom.canvas.optional('game')
+dom.canvas.opt('game')
 ```
 
 ### Common semantic tags
@@ -166,7 +173,7 @@ dom.canvas.optional('game')
 * `section(id)` → `<section>`
 * `small(id)` → `<small>`
 
-(Also with `.optional`.)
+(Also with `.optional` and `.opt`.)
 
 ---
 

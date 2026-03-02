@@ -1,0 +1,59 @@
+# =============================
+# Node / npm
+# =============================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Lockfiles (keep if publishing libraries — comment out if needed)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# =============================
+# Build Output
+# =============================
+dist/
+build/
+coverage/
+
+# Sourcemaps (optional — comment out if you want to commit them)
+# *.map
+
+# =============================
+# Environment Files
+# =============================
+.env
+.env.*
+
+# =============================
+# Logs
+# =============================
+logs/
+*.log
+
+# =============================
+# OS Files
+# =============================
+.DS_Store
+Thumbs.db
+
+# =============================
+# Editor / IDE
+# =============================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =============================
+# Testing
+# =============================
+vitest.config.ts
+
+# =============================
+# Misc
+# =============================
+*.tgz

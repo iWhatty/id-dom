@@ -9,7 +9,7 @@
 // - Zero deps, framework-agnostic
 
 const DEFAULT_ROOT =
-  typeof document !== 'undefined' && document ? document : /** @type {any} */ (null)
+    typeof document !== 'undefined' && document ? document : /** @type {any} */ (null)
 
 /**
  * @typedef {'throw' | 'null'} DomMode
@@ -28,12 +28,12 @@ const DEFAULT_ROOT =
  * @param {DomConfig | undefined} cfg
  */
 function normalizeConfig(cfg) {
-  return {
-    mode: cfg?.mode ?? 'throw', // default strict
-    warn: cfg?.warn ?? false,
-    onError: typeof cfg?.onError === 'function' ? cfg.onError : null,
-    root: cfg?.root ?? DEFAULT_ROOT,
-  }
+    return {
+        mode: cfg?.mode ?? 'throw', // default strict
+        warn: cfg?.warn ?? false,
+        onError: typeof cfg?.onError === 'function' ? cfg.onError : null,
+        root: cfg?.root ?? DEFAULT_ROOT,
+    }
 }
 
 /**
@@ -41,7 +41,7 @@ function normalizeConfig(cfg) {
  * @returns {v is { getElementById(id: string): HTMLElement | null }}
  */
 function hasGetElementById(v) {
-  return !!v && typeof v === 'object' && typeof v.getElementById === 'function'
+    return !!v && typeof v === 'object' && typeof v.getElementById === 'function'
 }
 
 /**
@@ -49,7 +49,7 @@ function hasGetElementById(v) {
  * @returns {v is { querySelector(sel: string): Element | null }}
  */
 function hasQuerySelector(v) {
-  return !!v && typeof v === 'object' && typeof v.querySelector === 'function'
+    return !!v && typeof v === 'object' && typeof v.querySelector === 'function'
 }
 
 /**
@@ -63,18 +63,18 @@ function hasQuerySelector(v) {
  * @returns {HTMLElement | null}
  */
 function getById(root, id) {
-  if (!root) return null
+    if (!root) return null
 
-  if (hasGetElementById(root)) return root.getElementById(id)
+    if (hasGetElementById(root)) return root.getElementById(id)
 
-  // ShadowRoot/DocumentFragment/Element don’t have getElementById
-  if (hasQuerySelector(root)) {
-    const sel = `#${CSS.escape(id)}`
-    const el = root.querySelector(sel)
-    return el instanceof HTMLElement ? el : null
-  }
+    // ShadowRoot/DocumentFragment/Element don’t have getElementById
+    if (hasQuerySelector(root)) {
+        const sel = `#${CSS.escape(id)}`
+        const el = root.querySelector(sel)
+        return el instanceof HTMLElement ? el : null
+    }
 
-  return null
+    return null
 }
 
 /**
@@ -82,7 +82,7 @@ function getById(root, id) {
  * @returns {string}
  */
 function fmtId(id) {
-  return id.startsWith('#') ? id : `#${id}`
+    return id.startsWith('#') ? id : `#${id}`
 }
 
 /**
@@ -90,7 +90,7 @@ function fmtId(id) {
  * @param {string} expected
  */
 function missingElError(id, expected) {
-  return new Error(`dom-id: missing ${expected} element ${fmtId(id)}`)
+    return new Error(`dom-id: missing ${expected} element ${fmtId(id)}`)
 }
 
 /**
@@ -99,7 +99,7 @@ function missingElError(id, expected) {
  * @param {string} got
  */
 function wrongTypeError(id, expected, got) {
-  return new Error(`dom-id: expected ${expected} for ${fmtId(id)}, got ${got}`)
+    return new Error(`dom-id: expected ${expected} for ${fmtId(id)}, got ${got}`)
 }
 
 /**
@@ -115,16 +115,16 @@ function wrongTypeError(id, expected, got) {
  * @returns {T | null}
  */
 function handleLookupError(err, ctx, cfg) {
-  try {
-    cfg.onError?.(err, ctx)
-  } catch {
-    // do not let reporting break app logic
-  }
+    try {
+        cfg.onError?.(err, ctx)
+    } catch {
+        // do not let reporting break app logic
+    }
 
-  if (cfg.warn) console.warn(err)
+    if (cfg.warn) console.warn(err)
 
-  if (cfg.mode === 'throw') throw err
-  return null
+    if (cfg.mode === 'throw') throw err
+    return null
 }
 
 /**
@@ -141,31 +141,31 @@ function handleLookupError(err, ctx, cfg) {
  * @returns {T | null}
  */
 export function byId(id, Type, config) {
-  const cfg = normalizeConfig(config)
-  const el = getById(cfg.root, id)
+    const cfg = normalizeConfig(config)
+    const el = getById(cfg.root, id)
 
-  if (!el) {
-    return handleLookupError(
-      missingElError(id, Type.name),
-      { id, Type, root: cfg.root, reason: 'missing' },
-      cfg
-    )
-  }
+    if (!el) {
+        return handleLookupError(
+            missingElError(id, Type.name),
+            { id, Type, root: cfg.root, reason: 'missing' },
+            cfg
+        )
+    }
 
-  if (!(el instanceof Type)) {
-    const got = el?.constructor?.name || typeof el
-    return handleLookupError(
-      wrongTypeError(id, Type.name, got),
-      { id, Type, root: cfg.root, reason: 'wrong-type', got },
-      cfg
-    )
-  }
+    if (!(el instanceof Type)) {
+        const got = el?.constructor?.name || typeof el
+        return handleLookupError(
+            wrongTypeError(id, Type.name, got),
+            { id, Type, root: cfg.root, reason: 'wrong-type', got },
+            cfg
+        )
+    }
 
-  return el
+    return el
 }
 
 /**
- * Optional typed lookup: ALWAYS returns T | null (never throws).
+ * Optional typed lookup: ALWAYS returns T | null (never throws for missing/wrong-type).
  *
  * @template {Element} T
  * @param {string} id
@@ -174,8 +174,11 @@ export function byId(id, Type, config) {
  * @returns {T | null}
  */
 byId.optional = function byIdOptional(id, Type, config) {
-  return byId(id, Type, { ...config, mode: 'null' })
+    return byId(id, Type, { ...config, mode: 'null' })
 }
+
+// Short alias (module-level; do not reassign inside factories)
+byId.opt = byId.optional
 
 /**
  * Tag-name lookup (HTMLElement only).
@@ -187,33 +190,33 @@ byId.optional = function byIdOptional(id, Type, config) {
  * @returns {HTMLElement | null}
  */
 export function tag(id, tagName, config) {
-  const cfg = normalizeConfig(config)
-  const el = getById(cfg.root, id)
+    const cfg = normalizeConfig(config)
+    const el = getById(cfg.root, id)
 
-  if (!el) {
-    return handleLookupError(
-      missingElError(id, `<${tagName}>`),
-      { id, tagName, root: cfg.root, reason: 'missing' },
-      cfg
-    )
-  }
+    if (!el) {
+        return handleLookupError(
+            missingElError(id, `<${tagName}>`),
+            { id, tagName, root: cfg.root, reason: 'missing' },
+            cfg
+        )
+    }
 
-  const expected = String(tagName).toUpperCase()
-  const got = String(el.tagName || '').toUpperCase()
+    const expected = String(tagName).toUpperCase()
+    const got = String(el.tagName || '').toUpperCase()
 
-  if (got !== expected) {
-    return handleLookupError(
-      wrongTypeError(id, `<${expected.toLowerCase()}>`, `<${got.toLowerCase()}>`),
-      { id, tagName, root: cfg.root, reason: 'wrong-tag', got },
-      cfg
-    )
-  }
+    if (got !== expected) {
+        return handleLookupError(
+            wrongTypeError(id, `<${expected.toLowerCase()}>`, `<${got.toLowerCase()}>`),
+            { id, tagName, root: cfg.root, reason: 'wrong-tag', got },
+            cfg
+        )
+    }
 
-  return el
+    return el
 }
 
 /**
- * Optional tag lookup: ALWAYS returns HTMLElement | null (never throws).
+ * Optional tag lookup: ALWAYS returns HTMLElement | null (never throws for missing/wrong-tag).
  *
  * @param {string} id
  * @param {string} tagName
@@ -221,8 +224,33 @@ export function tag(id, tagName, config) {
  * @returns {HTMLElement | null}
  */
 tag.optional = function tagOptional(id, tagName, config) {
-  return tag(id, tagName, { ...config, mode: 'null' })
+    return tag(id, tagName, { ...config, mode: 'null' })
 }
+
+// Short alias (module-level; do not reassign inside factories)
+tag.opt = tag.optional
+
+// --- internal maps for factory helpers ---
+const TYPE_HELPERS = /** @type {Record<string, any>} */ ({
+    el: typeof HTMLElement !== 'undefined' ? HTMLElement : null,
+    input: typeof HTMLInputElement !== 'undefined' ? HTMLInputElement : null,
+    button: typeof HTMLButtonElement !== 'undefined' ? HTMLButtonElement : null,
+    textarea: typeof HTMLTextAreaElement !== 'undefined' ? HTMLTextAreaElement : null,
+    select: typeof HTMLSelectElement !== 'undefined' ? HTMLSelectElement : null,
+    form: typeof HTMLFormElement !== 'undefined' ? HTMLFormElement : null,
+    div: typeof HTMLDivElement !== 'undefined' ? HTMLDivElement : null,
+    span: typeof HTMLSpanElement !== 'undefined' ? HTMLSpanElement : null,
+    label: typeof HTMLLabelElement !== 'undefined' ? HTMLLabelElement : null,
+    canvas: typeof HTMLCanvasElement !== 'undefined' ? HTMLCanvasElement : null,
+    template: typeof HTMLTemplateElement !== 'undefined' ? HTMLTemplateElement : null,
+    svg: typeof SVGSVGElement !== 'undefined' ? SVGSVGElement : null,
+})
+
+const TAG_HELPERS = /** @type {Record<string, string>} */ ({
+    main: 'main',
+    section: 'section',
+    small: 'small',
+})
 
 /**
  * Factory: scope getters to a specific root + default policy.
@@ -231,55 +259,57 @@ tag.optional = function tagOptional(id, tagName, config) {
  * @param {Omit<DomConfig, 'root'>} [config]
  */
 export function createDom(root, config) {
-  const base = normalizeConfig({ ...config, root })
+    const base = normalizeConfig({ ...config, root })
+    const baseNull = { ...base, mode: 'null' }
 
-  /** @type {any} */
-  const api = {
-    // generic
-    byId: (id, Type) => byId(id, Type, base),
-    tag: (id, name) => tag(id, name, base),
+    /** @type {any} */
+    const api = {
+        // generic
+        byId: (id, Type) => byId(id, Type, base),
+        tag: (id, name) => tag(id, name, base),
+    }
 
     // typed helpers
-    el: (id) => byId(id, HTMLElement, base),
-    input: (id) => byId(id, HTMLInputElement, base),
-    button: (id) => byId(id, HTMLButtonElement, base),
-    textarea: (id) => byId(id, HTMLTextAreaElement, base),
-    select: (id) => byId(id, HTMLSelectElement, base),
-    form: (id) => byId(id, HTMLFormElement, base),
-    div: (id) => byId(id, HTMLDivElement, base),
-    span: (id) => byId(id, HTMLSpanElement, base),
-    label: (id) => byId(id, HTMLLabelElement, base),
-    canvas: (id) => byId(id, HTMLCanvasElement, base),
-    template: (id) => byId(id, HTMLTemplateElement, base),
-    svg: (id) => byId(id, SVGSVGElement, base),
-
-    // common semantic tags
-    main: (id) => tag(id, 'main', base),
-    section: (id) => tag(id, 'section', base),
-    small: (id) => tag(id, 'small', base),
-  }
-
-  // Optional variants: force mode 'null' (never throw)
-  api.byId.optional = (id, Type) => byId.optional(id, Type, base)
-  api.tag.optional = (id, name) => tag.optional(id, name, base)
-
-  // Add `.optional` to every function on the api (typed + tag helpers)
-  for (const k of Object.keys(api)) {
-    const fn = api[k]
-    if (typeof fn !== 'function') continue
-    if (fn.optional) continue
-
-    fn.optional = (id, ...rest) => {
-      // preserve base config but force no-throw
-      try {
-        return fn(id, ...rest)
-      } catch {
-        return null
-      }
+    for (const [name, Type] of Object.entries(TYPE_HELPERS)) {
+        if (!Type) continue
+        api[name] = (id) => byId(id, Type, base)
     }
-  }
 
-  return api
+    // semantic tag helpers
+    for (const [name, tagName] of Object.entries(TAG_HELPERS)) {
+        api[name] = (id) => tag(id, tagName, base)
+    }
+
+    // --- Optional variants (policy-based; never swallow unrelated exceptions) ---
+    api.byId.optional = (id, Type) => byId(id, Type, baseNull)
+    api.byId.opt = api.byId.optional
+
+    api.tag.optional = (id, name) => tag(id, name, baseNull)
+    api.tag.opt = api.tag.optional
+
+    // Add `.optional` + `.opt` to every helper using the same "null" policy
+    for (const k of Object.keys(api)) {
+        const fn = api[k]
+        if (typeof fn !== 'function') continue
+        if (fn.optional) continue
+
+        if (k in TAG_HELPERS) {
+            const tagName = TAG_HELPERS[k]
+            fn.optional = (id) => tag(id, tagName, baseNull)
+            fn.opt = fn.optional
+            continue
+        }
+
+        if (k in TYPE_HELPERS) {
+            const Type = TYPE_HELPERS[k]
+            if (Type) {
+                fn.optional = (id) => byId(id, Type, baseNull)
+                fn.opt = fn.optional
+            }
+        }
+    }
+
+    return api
 }
 
 // Default export: root = document (if available), strict by default
