@@ -1,8 +1,8 @@
-// dom-id.test.js
+// id-dom.test.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import dom, { byId, tag, createDom } from './id-dom.js'
 
-describe('dom-id', () => {
+describe('id-dom', () => {
   beforeEach(() => {
     document.body.innerHTML = `
       <button id="saveBtn">Save</button>
@@ -105,7 +105,7 @@ describe('dom-id', () => {
   })
 
   it('warn: true triggers console.warn (without breaking behavior)', () => {
-    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => { })
     const d = createDom(document, { mode: 'null', warn: true })
 
     expect(d.button('missingBtn')).toBeNull()
@@ -139,4 +139,61 @@ describe('dom-id', () => {
 
     document.body.removeChild(container)
   })
+
+  it('supports SVG lookup inside scoped roots', () => {
+    const container = document.createElement('div')
+    container.innerHTML = `<svg id="icon"></svg>`
+    document.body.appendChild(container)
+
+    const d = createDom(container, { mode: 'throw' })
+    const svg = d.svg('icon')
+
+    expect(svg).toBeInstanceOf(SVGSVGElement)
+
+    document.body.removeChild(container)
+  })
+
+  it('supports HTMLBodyElement helper', () => {
+    document.body.id = 'pageBody'
+    const body = byId('pageBody', HTMLBodyElement)
+    expect(body).toBeInstanceOf(HTMLBodyElement)
+  })
+
+  it('supports body helper', () => {
+    document.body.id = 'pageBody'
+    const d = createDom(document, { mode: 'throw' })
+    expect(d.body('pageBody')).toBeInstanceOf(HTMLBodyElement)
+  })
+
+  it('byId returns null/throws predictably for invalid id', () => {
+    expect(byId.optional('', HTMLDivElement)).toBeNull()
+    expect(() => byId('', HTMLDivElement)).toThrow(/invalid id/i)
+  })
+
+  it('byId returns null/throws predictably for invalid Type', () => {
+    expect(byId.optional('x', null)).toBeNull()
+    expect(() => byId('x', null)).toThrow(/invalid type/i)
+  })
+
+  it('tag returns null/throws predictably for invalid id', () => {
+    expect(tag.optional('', 'main')).toBeNull()
+    expect(() => tag('', 'main')).toThrow(/invalid id/i)
+  })
+
+  it('tag returns null/throws predictably for invalid tagName', () => {
+    expect(tag.optional('appMain', '')).toBeNull()
+    expect(() => tag('appMain', '')).toThrow(/invalid tag/i)
+  })
+
+
+  it('tag can validate non-HTMLElement elements if tag matches', () => {
+    const container = document.createElement('div')
+    container.innerHTML = `<svg id="icon"></svg>`
+    document.body.appendChild(container)
+
+    expect(tag('icon', 'svg', { root: container, mode: 'throw' })).toBeInstanceOf(SVGSVGElement)
+
+    document.body.removeChild(container)
+  })
+
 })

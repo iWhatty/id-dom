@@ -3,21 +3,20 @@
 [![npm version](https://img.shields.io/npm/v/id-dom.svg)](https://www.npmjs.com/package/id-dom)
 [![npm downloads](https://img.shields.io/npm/dm/id-dom.svg)](https://www.npmjs.com/package/id-dom)
 [![GitHub stars](https://img.shields.io/github/stars/iWhatty/id-dom.svg?style=social)](https://github.com/iWhatty/id-dom)
-[![License](https://img.shields.io/github/license/iWhatty/id-dom.svg)](https://github.com/iWhatty/id-dom/blob/main/LICENSE.md)
+[![License](https://img.shields.io/github/license/iWhatty/id-dom.svg)](https://github.com/iWhatty/id-dom/blob/main/LICENSE)
 
-
-**Deterministic DOM element getters by ID (typed, tiny, modern).**
+**Deterministic DOM element getters by ID — typed, tiny, modern.**
 
 `id-dom` is a small utility for grabbing DOM references safely **by `id`**, with predictable behavior:
 
-*  **Typed getters** (`button('saveBtn')`, `input('name')`, etc.)
-*  **Strict or optional** mode (`throw` vs `null`)
-*  **Short optional alias** (`.opt`)
-*  **Scopable** to a root (`document`, `ShadowRoot`, or an `Element`)
-*  **Centralized error handling** (`onError`, optional `warn`)
-*  **Zero deps**
+* **Typed getters** like `button('saveBtn')`, `input('nameInput')`, `svg('icon')`
+* **Strict or optional** mode (`throw` vs `null`)
+* **Short optional alias** via `.opt`
+* **Scoped lookups** for `document`, `ShadowRoot`, `DocumentFragment`, or an `Element`
+* **Centralized error handling** with `onError` and optional `warn`
+* **Zero deps**
 
-This is deliberately **not** a selector framework — it’s a tiny “ID-first” primitive for clean, safe DOM wiring.
+This is deliberately **not** a selector framework. It is a tiny, ID-first primitive for safe DOM wiring.
 
 ---
 
@@ -34,17 +33,16 @@ npm install id-dom
 ```js
 import dom from 'id-dom'
 
-const saveBtn = dom.button('saveBtn') // throws if missing or wrong type
+const saveBtn = dom.button('saveBtn')
 saveBtn.addEventListener('click', save)
 ```
 
-Optional access (never throws for missing/wrong-type):
+Optional access never throws for missing or wrong-type elements:
 
 ```js
 const debug = dom.div.optional('debugPanel')
 debug?.append('hello')
 
-// short alias
 const maybeCanvas = dom.canvas.opt('game')
 ```
 
@@ -58,9 +56,9 @@ Using `getElementById` is:
 * unambiguous
 * easy to reason about
 
-…and with typed getters, you immediately know whether you have a `HTMLButtonElement`, `HTMLInputElement`, etc.
+And with typed getters, you immediately know whether you got a `HTMLButtonElement`, `HTMLInputElement`, `SVGSVGElement`, and so on.
 
-Scoped lookups safely escape IDs when using `querySelector`, ensuring stability even for edge-case IDs (e.g. starting with digits).
+When scoped roots do not support `getElementById`, `id-dom` falls back to `querySelector(#id)` and safely escapes edge-case IDs.
 
 ---
 
@@ -71,7 +69,8 @@ Scoped lookups safely escape IDs when using `querySelector`, ensuring stability 
 The default export is a scoped instance using `document` (when available) with **strict** behavior:
 
 * missing element → **throws**
-* wrong type/tag → **throws**
+* wrong type or wrong tag → **throws**
+* invalid input → **throws**
 
 ```js
 import dom from 'id-dom'
@@ -84,17 +83,16 @@ const submit = dom.button('submitBtn')
 
 ### `createDom(root, config?)`
 
-Create a scoped instance that searches within a root:
+Create a scoped instance that searches within a specific root:
 
-* `document` (uses `getElementById`)
-* `ShadowRoot` / `Element` (uses `querySelector(#id)` fallback)
+* `document` → uses `getElementById`
+* `ShadowRoot`, `DocumentFragment`, or `Element` → uses `querySelector(#id)` fallback
 
 ```js
 import { createDom } from 'id-dom'
 
 const d = createDom(document, { mode: 'null', warn: true })
-
-const sidebar = d.div('sidebar') // null if missing
+const sidebar = d.div('sidebar')
 ```
 
 #### Config
@@ -103,8 +101,8 @@ const sidebar = d.div('sidebar') // null if missing
 type DomMode = 'throw' | 'null'
 
 {
-  mode?: DomMode                 // default: 'throw'
-  warn?: boolean                 // default: false
+  mode?: DomMode
+  warn?: boolean
   onError?: (err: Error, ctx: any) => void
 }
 ```
@@ -121,23 +119,32 @@ import { byId } from 'id-dom'
 const btn = byId('saveBtn', HTMLButtonElement)
 ```
 
-Optional variants (never throw for missing/wrong-type):
+Optional variants:
 
 ```js
 const maybeBtn = byId.optional('saveBtn', HTMLButtonElement)
 const maybeBtn2 = byId.opt('saveBtn', HTMLButtonElement)
 ```
 
+#### Behavior
+
+* valid match → returns the element
+* missing element → throws or returns `null`
+* wrong type → throws or returns `null`
+* invalid `id` → throws or returns `null`
+* invalid `Type` → throws or returns `null`
+
 ---
 
 ### `tag(id, tagName, config?)`
 
-Tag-based validation for semantic elements:
+Tag-based validation when constructor checks are not the right fit:
 
 ```js
 import { tag } from 'id-dom'
 
 const main = tag('appMain', 'main')
+const icon = tag('icon', 'svg', { root: container })
 ```
 
 Optional variants:
@@ -147,13 +154,21 @@ const maybeMain = tag.optional('appMain', 'main')
 const maybeMain2 = tag.opt('appMain', 'main')
 ```
 
+#### Behavior
+
+* valid tag match → returns the element
+* missing element → throws or returns `null`
+* wrong tag → throws or returns `null`
+* invalid `id` → throws or returns `null`
+* invalid `tagName` → throws or returns `null`
+
 ---
 
 ## Built-in Getters
 
 ### Typed getters
 
-From `dom` (and any `createDom()` instance):
+Available on `dom` and on any `createDom()` instance:
 
 * `el(id)` → `HTMLElement`
 * `input(id)` → `HTMLInputElement`
@@ -167,27 +182,28 @@ From `dom` (and any `createDom()` instance):
 * `canvas(id)` → `HTMLCanvasElement`
 * `template(id)` → `HTMLTemplateElement`
 * `svg(id)` → `SVGSVGElement`
+* `body(id)` → `HTMLBodyElement`
 
-Each also has:
+Each getter also has:
 
 ```js
 dom.canvas.optional('game')
 dom.canvas.opt('game')
 ```
 
-### Common semantic tags
+### Common tag helpers
 
-* `main(id)` → `<main>`
-* `section(id)` → `<section>`
-* `small(id)` → `<small>`
+* `main(id)` → validates `<main>`
+* `section(id)` → validates `<section>`
+* `small(id)` → validates `<small>`
 
-(Also with `.optional` and `.opt`.)
+Each also supports `.optional` and `.opt`.
 
 ---
 
 ## Error Handling
 
-### Throwing (default)
+### Throwing mode
 
 ```js
 import dom from 'id-dom'
@@ -201,7 +217,6 @@ dom.button('missing') // throws
 import { createDom } from 'id-dom'
 
 const d = createDom(document, { mode: 'null' })
-
 d.button('missing') // null
 ```
 
@@ -216,7 +231,7 @@ const d = createDom(document, {
 })
 ```
 
-Enable console warnings:
+Enable console warnings too:
 
 ```js
 createDom(document, { mode: 'null', warn: true })
@@ -224,7 +239,9 @@ createDom(document, { mode: 'null', warn: true })
 
 ---
 
-## Shadow DOM / Scoped Roots
+## Scoped Roots
+
+### Shadow DOM
 
 ```js
 import { createDom } from 'id-dom'
@@ -237,6 +254,30 @@ const d = createDom(shadow)
 const btn = d.button('shadowBtn')
 ```
 
+### Element root
+
+```js
+const container = document.querySelector('#settings-panel')
+const d = createDom(container)
+const input = d.input('emailInput')
+```
+
+### SVG in scoped roots
+
+```js
+const container = document.querySelector('#icons')
+const d = createDom(container)
+const icon = d.svg('logoMark')
+```
+
+---
+
+## Notes
+
+* `el(id)` is specifically for `HTMLElement`, not every possible DOM `Element`.
+* `body(id)` looks up a `<body>` **by ID**. This library stays ID-first on purpose.
+* `tag()` can validate non-HTML tags too, such as `svg`, when used against supported scoped roots.
+
 ---
 
 ## Browser Support
@@ -246,7 +287,7 @@ Modern browsers supporting:
 * `getElementById`
 * `querySelector`
 
-`CSS.escape` is used when available. A safe internal fallback is provided for environments (e.g. some jsdom builds) where it is missing.
+`CSS.escape` is used when available. A safe internal fallback is included for environments such as some jsdom builds where it may be missing.
 
 ---
 
