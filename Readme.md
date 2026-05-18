@@ -1,9 +1,10 @@
 # id-dom
 
-[![npm version](https://img.shields.io/npm/v/id-dom.svg)](https://www.npmjs.com/package/id-dom)
-[![npm downloads](https://img.shields.io/npm/dm/id-dom.svg)](https://www.npmjs.com/package/id-dom)
-[![GitHub stars](https://img.shields.io/github/stars/iWhatty/id-dom.svg?style=social)](https://github.com/iWhatty/id-dom)
-[![License](https://img.shields.io/github/license/iWhatty/id-dom.svg)](https://github.com/iWhatty/id-dom/blob/main/LICENSE)
+[![npm](https://img.shields.io/npm/v/id-dom)](https://www.npmjs.com/package/id-dom)
+[![downloads](https://img.shields.io/npm/dm/id-dom)](https://www.npmjs.com/package/id-dom)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/id-dom)](https://bundlephobia.com/package/id-dom)
+[![license](https://img.shields.io/npm/l/id-dom)](https://github.com/iWhatty/id-dom/blob/main/LICENSE)
+[![stars](https://img.shields.io/github/stars/iWhatty/id-dom?style=social)](https://github.com/iWhatty/id-dom)
 
 **Deterministic DOM element getters by ID — typed, tiny, modern.**
 
