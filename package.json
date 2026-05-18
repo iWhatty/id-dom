@@ -2,7 +2,7 @@
   "name": "id-dom",
   "version": "0.0.4",
   "description": "Deterministic DOM element getters by ID (typed, tiny, modern).",
-  "author": "DR.WATT",
+  "author": "WATT3D <WATT3D@protonmail.com>",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "main": "./dist/index.cjs",
