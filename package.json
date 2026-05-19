@@ -3,7 +3,7 @@
   "version": "0.0.5",
   "description": "Deterministic DOM element getters by ID (typed, tiny, modern).",
   "author": "WATT3D <WATT3D@protonmail.com>",
-  "license": "AGPL-3.0-only",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
