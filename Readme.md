@@ -31,21 +31,41 @@ npm install id-dom
 
 ## Quick Start
 
+Two import styles, same root, same behavior. Pick by preference:
+
 ```js
+// Default-object style — every typed helper lives under one namespace.
 import dom from 'id-dom'
 
 const saveBtn = dom.button('saveBtn')
 saveBtn.addEventListener('click', save)
 ```
 
+```js
+// Named-import style — added in 0.0.5. Makes the dependency surface
+// explicit in the import declaration. Tree-shaken identically by modern
+// bundlers (esbuild, vite, rollup, webpack 5) since the package ships
+// `sideEffects: false`.
+import { button, input, div } from 'id-dom'
+
+const saveBtn = button('saveBtn')
+const email   = input('email')
+const panel   = div('mainPanel')
+```
+
 Optional access never throws for missing or wrong-type elements:
 
 ```js
-const debug = dom.div.optional('debugPanel')
+const debug = dom.div.optional('debugPanel')   // default-object style
 debug?.append('hello')
 
-const maybeCanvas = dom.canvas.opt('game')
+import { canvas } from 'id-dom'
+const maybeCanvas = canvas.opt('game')          // named style
 ```
+
+### Bundle-size note
+
+The shared lookup machinery (validation, CSS-escape fallback, error policy, root resolution) is the bulk of the package — roughly 1.9 KB gzipped in a modern bundler. Importing 4 helpers vs 1 vs the full default object lands in the same ballpark. The named-import style is recommended for readability and explicit-surface clarity, not for size.
 
 ---
 

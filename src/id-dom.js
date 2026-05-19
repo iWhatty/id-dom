@@ -545,7 +545,66 @@ export function createDom(root, config) {
 }
 
 // -----------------------------------------------------------------------------
-// Default export
+// Default-root config (shared by the default export and the named typed helpers)
+// -----------------------------------------------------------------------------
+
+const DEFAULT_BASE = normalizeConfig({ mode: 'throw', root: DEFAULT_ROOT })
+const DEFAULT_BASE_NULL = { ...DEFAULT_BASE, mode: 'null' }
+
+/**
+ * Build a typed helper bound to the default root.
+ * Internal — exposed via the per-helper named exports below.
+ *
+ * @param {any} Type
+ */
+function defaultTypedHelper(Type) {
+    return Type ? makeTypedHelper(Type, DEFAULT_BASE, DEFAULT_BASE_NULL) : null
+}
+
+/**
+ * Build a tag-name helper bound to the default root.
+ *
+ * @param {string} tagName
+ */
+function defaultTagHelper(tagName) {
+    return makeTagHelper(tagName, DEFAULT_BASE, DEFAULT_BASE_NULL)
+}
+
+// -----------------------------------------------------------------------------
+// Named typed-element helpers (per-helper exports — tree-shakeable)
+//
+// Each one is a `const` initialized to a tiny closure produced by
+// makeTypedHelper. Modern bundlers (esbuild, rollup, vite) drop the
+// unused ones because the package declares sideEffects: false.
+//
+// SSR-safe: in environments where the corresponding global constructor
+// isn't defined (Node without jsdom, etc.), the export is `null` rather
+// than a thrown construction error.
+// -----------------------------------------------------------------------------
+
+export const el       = defaultTypedHelper(typeof HTMLElement         !== 'undefined' ? HTMLElement         : null)
+export const input    = defaultTypedHelper(typeof HTMLInputElement    !== 'undefined' ? HTMLInputElement    : null)
+export const button   = defaultTypedHelper(typeof HTMLButtonElement   !== 'undefined' ? HTMLButtonElement   : null)
+export const textarea = defaultTypedHelper(typeof HTMLTextAreaElement !== 'undefined' ? HTMLTextAreaElement : null)
+export const select   = defaultTypedHelper(typeof HTMLSelectElement   !== 'undefined' ? HTMLSelectElement   : null)
+export const form     = defaultTypedHelper(typeof HTMLFormElement     !== 'undefined' ? HTMLFormElement     : null)
+export const div      = defaultTypedHelper(typeof HTMLDivElement      !== 'undefined' ? HTMLDivElement      : null)
+export const span     = defaultTypedHelper(typeof HTMLSpanElement     !== 'undefined' ? HTMLSpanElement     : null)
+export const label    = defaultTypedHelper(typeof HTMLLabelElement    !== 'undefined' ? HTMLLabelElement    : null)
+export const canvas   = defaultTypedHelper(typeof HTMLCanvasElement   !== 'undefined' ? HTMLCanvasElement   : null)
+export const template = defaultTypedHelper(typeof HTMLTemplateElement !== 'undefined' ? HTMLTemplateElement : null)
+export const svg      = defaultTypedHelper(typeof SVGSVGElement       !== 'undefined' ? SVGSVGElement       : null)
+export const body     = defaultTypedHelper(typeof HTMLBodyElement     !== 'undefined' ? HTMLBodyElement     : null)
+
+// Named tag-name helpers (no dedicated constructor)
+export const main    = defaultTagHelper('main')
+export const section = defaultTagHelper('section')
+export const small   = defaultTagHelper('small')
+
+// -----------------------------------------------------------------------------
+// Default export — the convenience object aggregating every helper. Use
+// named imports above for tree-shake-friendly bundles; use this default
+// when you want all helpers under one namespace (`dom.button(…)`).
 // -----------------------------------------------------------------------------
 
 const dom = createDom(DEFAULT_ROOT, { mode: 'throw' })
