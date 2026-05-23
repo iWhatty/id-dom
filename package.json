@@ -7,13 +7,16 @@
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
+  "types": "./dist/types/id-dom.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/types/id-dom.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs",
       "default": "./dist/index.js"
     },
     "./min": {
+      "types": "./dist/types/id-dom.d.ts",
       "import": "./dist/index.min.js",
       "default": "./dist/index.min.js"
     }
@@ -46,13 +49,15 @@
   ],
   "scripts": {
     "build": "node build.js",
-    "prepublishOnly": "npm run build",
+    "build:types": "tsc -p tsconfig.types.json",
+    "prepublishOnly": "npm run build && npm run build:types",
     "test": "vitest run --environment jsdom",
     "test:watch": "vitest --environment jsdom"
   },
   "devDependencies": {
     "esbuild": "^0.27.3",
     "jsdom": "^24.0.0",
+    "typescript": "^5.9.3",
     "vitest": "^3.1.2"
   },
   "engines": {
