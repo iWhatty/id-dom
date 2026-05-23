@@ -2,6 +2,11 @@
 
 > Initial cut seeded from `git log` by the host repo's `tools/seed-changelogs.mjs` script. Version groupings infer release boundaries from tags and commit subjects; rough cuts are expected — review and tighten as part of normal maintenance.
 
+## 0.0.6 — 2026-05-23
+
+- **fix(ssr): typed-element helpers are now always callable, even when their corresponding global constructor is undefined.** Pre-0.0.6, `defaultTypedHelper(null)` returned literal `null`, so an SSR consumer importing `input` from `id-dom` and calling `input('email')` got a cryptic `TypeError: input is not a function`. Now the SSR fallback is an always-callable shim: the base call throws a clear "DOM required" error (matches `mode: 'throw'` semantics), and `.optional` / `.opt` return `null` (matches `mode: 'null'` semantics). Browser behaviour is unchanged. Closes the SSR null-helper footgun called out in host carry-forward #6 and noted in the 0.0.5 generated `.d.ts` SSR caveat. The `.d.ts` `DomApi` typedef comment block now reflects the new behaviour.
+- **chore(types): JSDoc polish — per-tag element narrowings + DomApi typedef.** Builds on the tsc-from-JSDoc pipeline that landed in 0.0.5. The generated `.d.ts` now exposes `input: TypedHelper<HTMLInputElement>` (previously `((id: any) => Element) & { optional: Function }`), `canvas: TypedHelper<HTMLCanvasElement>`, etc. `createDom` returns `DomApi` (was `any`). New `TypedHelper<T>` and `DomApi` typedefs are first-class exports.
+
 ## Unreleased — 2026-05-19
 
 - docs(README): apply @whatty README template + rename Readme.md → README.md  `06165a1`
