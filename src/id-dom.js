@@ -36,6 +36,56 @@ const NEEDS_START_ESCAPE_RE = /^(?:\d|-\d)/
  * }} DomConfig
  */
 
+/**
+ * The callable shape exposed by every typed helper (`input`, `button`, …)
+ * and tag helper (`main`, `section`, …). The base call follows the helper's
+ * default `mode` (typically `'throw'`); `.optional`/`.opt` always return `T | null`.
+ *
+ * @template T
+ * @typedef {((id: string) => T) & {
+ *   optional: (id: string) => T | null,
+ *   opt: (id: string) => T | null
+ * }} TypedHelper
+ */
+
+/**
+ * Aggregate API returned by {@link createDom}. Mirrors the named exports
+ * but is scoped to the configured root.
+ *
+ * Note: helpers whose corresponding global constructor isn't defined (e.g.
+ * `HTMLInputElement` in a non-DOM SSR environment) are `null` at runtime.
+ * The types below assume browser usage; SSR consumers should null-check
+ * before invoking. See carry-forward #6 in host HANDOFF.md for the
+ * planned SSR-safe split.
+ *
+ * @typedef {{
+ *   byId: (<T extends Element>(id: string, Type: { new (...args: any[]): T }) => T) & {
+ *     optional: <T extends Element>(id: string, Type: { new (...args: any[]): T }) => T | null,
+ *     opt: <T extends Element>(id: string, Type: { new (...args: any[]): T }) => T | null
+ *   },
+ *   tag: ((id: string, tagName: string) => Element) & {
+ *     optional: (id: string, tagName: string) => Element | null,
+ *     opt: (id: string, tagName: string) => Element | null
+ *   },
+ *   el: TypedHelper<HTMLElement>,
+ *   input: TypedHelper<HTMLInputElement>,
+ *   button: TypedHelper<HTMLButtonElement>,
+ *   textarea: TypedHelper<HTMLTextAreaElement>,
+ *   select: TypedHelper<HTMLSelectElement>,
+ *   form: TypedHelper<HTMLFormElement>,
+ *   div: TypedHelper<HTMLDivElement>,
+ *   span: TypedHelper<HTMLSpanElement>,
+ *   label: TypedHelper<HTMLLabelElement>,
+ *   canvas: TypedHelper<HTMLCanvasElement>,
+ *   template: TypedHelper<HTMLTemplateElement>,
+ *   svg: TypedHelper<SVGSVGElement>,
+ *   body: TypedHelper<HTMLBodyElement>,
+ *   main: TypedHelper<HTMLElement>,
+ *   section: TypedHelper<HTMLElement>,
+ *   small: TypedHelper<HTMLElement>
+ * }} DomApi
+ */
+
 // -----------------------------------------------------------------------------
 // Config
 // -----------------------------------------------------------------------------
@@ -514,6 +564,7 @@ function makeTagHelper(tagName, base, baseNull) {
  *
  * @param {any} root
  * @param {Omit<DomConfig, 'root'>} [config]
+ * @returns {DomApi}
  */
 export function createDom(root, config) {
     const base = normalizeConfig({ ...config, root })
@@ -582,23 +633,39 @@ function defaultTagHelper(tagName) {
 // than a thrown construction error.
 // -----------------------------------------------------------------------------
 
+/** @type {TypedHelper<HTMLElement>} */
 export const el       = defaultTypedHelper(typeof HTMLElement         !== 'undefined' ? HTMLElement         : null)
+/** @type {TypedHelper<HTMLInputElement>} */
 export const input    = defaultTypedHelper(typeof HTMLInputElement    !== 'undefined' ? HTMLInputElement    : null)
+/** @type {TypedHelper<HTMLButtonElement>} */
 export const button   = defaultTypedHelper(typeof HTMLButtonElement   !== 'undefined' ? HTMLButtonElement   : null)
+/** @type {TypedHelper<HTMLTextAreaElement>} */
 export const textarea = defaultTypedHelper(typeof HTMLTextAreaElement !== 'undefined' ? HTMLTextAreaElement : null)
+/** @type {TypedHelper<HTMLSelectElement>} */
 export const select   = defaultTypedHelper(typeof HTMLSelectElement   !== 'undefined' ? HTMLSelectElement   : null)
+/** @type {TypedHelper<HTMLFormElement>} */
 export const form     = defaultTypedHelper(typeof HTMLFormElement     !== 'undefined' ? HTMLFormElement     : null)
+/** @type {TypedHelper<HTMLDivElement>} */
 export const div      = defaultTypedHelper(typeof HTMLDivElement      !== 'undefined' ? HTMLDivElement      : null)
+/** @type {TypedHelper<HTMLSpanElement>} */
 export const span     = defaultTypedHelper(typeof HTMLSpanElement     !== 'undefined' ? HTMLSpanElement     : null)
+/** @type {TypedHelper<HTMLLabelElement>} */
 export const label    = defaultTypedHelper(typeof HTMLLabelElement    !== 'undefined' ? HTMLLabelElement    : null)
+/** @type {TypedHelper<HTMLCanvasElement>} */
 export const canvas   = defaultTypedHelper(typeof HTMLCanvasElement   !== 'undefined' ? HTMLCanvasElement   : null)
+/** @type {TypedHelper<HTMLTemplateElement>} */
 export const template = defaultTypedHelper(typeof HTMLTemplateElement !== 'undefined' ? HTMLTemplateElement : null)
+/** @type {TypedHelper<SVGSVGElement>} */
 export const svg      = defaultTypedHelper(typeof SVGSVGElement       !== 'undefined' ? SVGSVGElement       : null)
+/** @type {TypedHelper<HTMLBodyElement>} */
 export const body     = defaultTypedHelper(typeof HTMLBodyElement     !== 'undefined' ? HTMLBodyElement     : null)
 
-// Named tag-name helpers (no dedicated constructor)
+// Named tag-name helpers (no dedicated constructor — return base Element)
+/** @type {TypedHelper<HTMLElement>} */
 export const main    = defaultTagHelper('main')
+/** @type {TypedHelper<HTMLElement>} */
 export const section = defaultTagHelper('section')
+/** @type {TypedHelper<HTMLElement>} */
 export const small   = defaultTagHelper('small')
 
 // -----------------------------------------------------------------------------
