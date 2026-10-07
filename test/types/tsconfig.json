@@ -8,5 +8,5 @@
     "lib": ["es2022", "dom"],
     "skipLibCheck": false
   },
-  "files": ["id-dom.types.ts"]
+  "files": ["id-dom.types.ts", "readme.types.ts"]
 }

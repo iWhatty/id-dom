@@ -87,8 +87,8 @@ const submit = dom.button('submitBtn')
 
 Create a scoped instance that searches within a specific root:
 
-- `document` → uses `getElementById`
-- `ShadowRoot`, `DocumentFragment`, or `Element` → uses `querySelector(#id)` fallback
+- `document`, `ShadowRoot`, or `DocumentFragment` → uses `getElementById`
+- `Element` → uses a `querySelector(#id)` fallback, which searches the element's descendants (not the element itself)
 
 ```js
 import { createDom } from 'id-dom'
@@ -106,8 +106,11 @@ type DomMode = 'throw' | 'null'
   mode?: DomMode
   warn?: boolean
   onError?: (err: Error, ctx: any) => void
+  root?: any // byId() and tag() only; createDom() takes the root as its first argument
 }
 ```
+
+`ctx` is `{ id, root, reason, ... }`, where `reason` is one of `'invalid-id'`, `'invalid-type'`, `'invalid-tag'`, `'missing'`, `'wrong-type'`, or `'wrong-tag'`.
 
 ### `byId(id, Type, config?)`
 
@@ -238,7 +241,7 @@ createDom(document, { mode: 'null', warn: true })
 
 Using `getElementById` is fast, unambiguous, and easy to reason about. With typed getters, you immediately know whether you got a `HTMLButtonElement`, `HTMLInputElement`, `SVGSVGElement`, and so on.
 
-When scoped roots do not support `getElementById`, id-dom falls back to `querySelector(#id)` and safely escapes edge-case IDs.
+When a scoped root does not support `getElementById` (an `Element`), id-dom falls back to `querySelector(#id)` and safely escapes edge-case IDs.
 
 ### Bundle-size note
 
@@ -249,9 +252,9 @@ The shared lookup machinery (validation, CSS-escape fallback, error policy, root
 **Shadow DOM:**
 
 ```js
-import { createDom } from 'id-dom'
+import dom, { createDom } from 'id-dom'
 
-const host = document.querySelector('#widget')
+const host = dom.el('widget')
 const shadow = host.attachShadow({ mode: 'open' })
 shadow.innerHTML = `<button id="shadowBtn">Click</button>`
 
@@ -262,7 +265,7 @@ const btn = d.button('shadowBtn')
 **Element root:**
 
 ```js
-const container = document.querySelector('#settings-panel')
+const container = dom.el('settings-panel')
 const d = createDom(container)
 const input = d.input('emailInput')
 ```
@@ -270,7 +273,7 @@ const input = d.input('emailInput')
 **SVG in scoped roots:**
 
 ```js
-const container = document.querySelector('#icons')
+const container = dom.el('icons')
 const d = createDom(container)
 const icon = d.svg('logoMark')
 ```
@@ -280,6 +283,22 @@ const icon = d.svg('logoMark')
 - `el(id)` is specifically for `HTMLElement`, not every possible DOM `Element`.
 - `body(id)` looks up a `<body>` **by ID**. This library stays ID-first on purpose.
 - `tag()` can validate non-HTML tags too, such as `svg`, when used against supported scoped roots.
+- Elements from another window (an iframe's document, a second jsdom) are found, but a typed getter checks `instanceof` against this window's constructors, so it reports them as the wrong type. Use `tag()` for them.
+
+### Server-side rendering
+
+Importing id-dom without a DOM (Node without jsdom, edge runtimes) is safe. Every helper stays callable: a typed getter (`input`, `button`, ...) throws a clear "requires a DOM" error in a `'throw'` scope and returns `null` in a `'null'` scope, and `.optional` / `.opt` return `null`. This holds for the named exports, the default `dom` object, and `createDom()` scopes (the last two since 0.0.8).
+
+### CommonJS
+
+`require('id-dom')` loads `dist/index.cjs`, with matching types (`dist/types/id-dom.d.cts`, since 0.0.8). Named helpers are properties of the module; the default object is `.default`:
+
+```js
+const { button, createDom } = require('id-dom')
+const dom = require('id-dom').default
+```
+
+`id-dom/min` is ES modules only.
 
 ### Browser support
 
