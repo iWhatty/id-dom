@@ -2,6 +2,28 @@
 
 > Initial cut seeded from `git log` by the host repo's `tools/seed-changelogs.mjs` script. Version groupings infer release boundaries from tags and commit subjects; rough cuts are expected — review and tighten as part of normal maintenance.
 
+## 0.0.7 — 2026-10-07
+
+Types only: the runtime behaviour is unchanged.
+
+- **types: throw-mode lookups are non-null.**
+  - `byId(id, Type)` and `byId(id, Type, { mode: 'throw' })` now return `T`, and `tag(id, name)` returns `Element`.
+  - They were `T | null` and `Element | null` even though throw mode never returns `null`.
+  - `{ mode: 'null' }`, a config whose mode is not statically known, and `.optional` / `.opt` still return `T | null`.
+  - Done with JSDoc `@overload`.
+- **types: `createDom(root, { mode: 'null' })` is nullable.** It returned a `DomApi` whose base calls were typed non-null, but in a `'null'` scope they can return `null`.
+  - `DomApi` and `TypedHelper` take an optional `N` (`never` by default, `null` for a `'null'` scope).
+  - `createDom` returns `DomApi` for a throw scope and `DomApi<null>` otherwise.
+  - Existing code that relied on the unsound non-null types in `'null'` scopes now gets a type error, which is the fix working.
+- **types: fix invalid declarations for `byId.opt` / `tag.opt`.**
+  - The emitted `import opt = optional` was a circular alias (TS2303, TS2503). It failed for every consumer that checks library declarations (`skipLibCheck: false`), including 0.0.6.
+  - `byId.optional` and `byId.opt` (and `tag`'s) are now one named function, assigned to both properties, so `byId.opt === byId.optional` still holds.
+- `tag()` stays typed `Element`, not the tag's interface, because tag names match case-insensitively (an SVG `<a>` matches `'a'`). Use `byId(id, HTMLDialogElement)` for a checked, precise type.
+- **test: type tests.** `test/types/id-dom.types.ts` checks the built `dist/types/id-dom.d.ts` in strict and loose mode, with `skipLibCheck: false`.
+  - It runs in `npm test` as `npm run test:types`. It fails on the 0.0.6 declarations with 13 errors.
+  - `prepublishOnly` now runs `npm test`; before, it only built.
+- chore: `package-lock.json` was out of sync (`typescript` missing; version 0.0.3), so `npm ci` failed. It is regenerated with the locked versions kept.
+
 ## 0.0.6 — 2026-05-23
 
 - **fix(ssr): typed-element helpers are now always callable, even when their corresponding global constructor is undefined.** Pre-0.0.6, `defaultTypedHelper(null)` returned literal `null`, so an SSR consumer importing `input` from `id-dom` and calling `input('email')` got a cryptic `TypeError: input is not a function`. Now the SSR fallback is an always-callable shim: the base call throws a clear "DOM required" error (matches `mode: 'throw'` semantics), and `.optional` / `.opt` return `null` (matches `mode: 'null'` semantics). Browser behaviour is unchanged. Closes the SSR null-helper footgun called out in host carry-forward #6 and noted in the 0.0.5 generated `.d.ts` SSR caveat. The `.d.ts` `DomApi` typedef comment block now reflects the new behaviour.

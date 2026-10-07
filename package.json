@@ -1,6 +1,6 @@
 {
   "name": "id-dom",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Deterministic DOM element getters by ID (typed, tiny, modern).",
   "author": "WATT3D <WATT3D@protonmail.com>",
   "license": "SEE LICENSE IN LICENSE",
@@ -50,8 +50,9 @@
   "scripts": {
     "build": "node build.js",
     "build:types": "tsc -p tsconfig.types.json",
-    "prepublishOnly": "npm run build && npm run build:types",
-    "test": "vitest run --environment jsdom",
+    "prepublishOnly": "npm run build && npm run build:types && npm test",
+    "test": "vitest run --environment jsdom && npm run test:types",
+    "test:types": "npm run build:types && tsc -p test/types/tsconfig.json && tsc -p test/types/tsconfig.loose.json",
     "test:watch": "vitest --environment jsdom"
   },
   "devDependencies": {

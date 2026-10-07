@@ -128,6 +128,7 @@ const maybeBtn2 = byId.opt('saveBtn', HTMLButtonElement)
 
 Behavior:
 
+- TypeScript: returns `T` in `'throw'` mode (the default), `T | null` with `mode: 'null'` and for `.optional` / `.opt`
 - valid match → returns the element
 - missing element → throws or returns `null`
 - wrong type → throws or returns `null`

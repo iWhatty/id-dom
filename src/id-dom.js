@@ -39,10 +39,13 @@ const NEEDS_START_ESCAPE_RE = /^(?:\d|-\d)/
 /**
  * The callable shape exposed by every typed helper (`input`, `button`, …)
  * and tag helper (`main`, `section`, …). The base call follows the helper's
- * default `mode` (typically `'throw'`); `.optional`/`.opt` always return `T | null`.
+ * `mode`: in `'throw'` mode (the default, `N = never`) it returns `T`; in a
+ * `'null'`-mode scope (`createDom(root, { mode: 'null' })`, `N = null`) it
+ * returns `T | null`. `.optional`/`.opt` always return `T | null`.
  *
  * @template T
- * @typedef {((id: string) => T) & {
+ * @template [N=never]
+ * @typedef {((id: string) => T | N) & {
  *   optional: (id: string) => T | null,
  *   opt: (id: string) => T | null
  * }} TypedHelper
@@ -59,31 +62,35 @@ const NEEDS_START_ESCAPE_RE = /^(?:\d|-\d)/
  * `null`. This matches the throw / null semantics consumers already
  * expect from the browser path.
  *
+ * `N` is what a base call can return besides the element: `never` for a
+ * `'throw'`-mode scope (the default), `null` for a `'null'`-mode scope.
+ *
+ * @template [N=never]
  * @typedef {{
- *   byId: (<T extends Element>(id: string, Type: { new (...args: any[]): T }) => T) & {
+ *   byId: (<T extends Element>(id: string, Type: { new (...args: any[]): T }) => T | N) & {
  *     optional: <T extends Element>(id: string, Type: { new (...args: any[]): T }) => T | null,
  *     opt: <T extends Element>(id: string, Type: { new (...args: any[]): T }) => T | null
  *   },
- *   tag: ((id: string, tagName: string) => Element) & {
+ *   tag: ((id: string, tagName: string) => Element | N) & {
  *     optional: (id: string, tagName: string) => Element | null,
  *     opt: (id: string, tagName: string) => Element | null
  *   },
- *   el: TypedHelper<HTMLElement>,
- *   input: TypedHelper<HTMLInputElement>,
- *   button: TypedHelper<HTMLButtonElement>,
- *   textarea: TypedHelper<HTMLTextAreaElement>,
- *   select: TypedHelper<HTMLSelectElement>,
- *   form: TypedHelper<HTMLFormElement>,
- *   div: TypedHelper<HTMLDivElement>,
- *   span: TypedHelper<HTMLSpanElement>,
- *   label: TypedHelper<HTMLLabelElement>,
- *   canvas: TypedHelper<HTMLCanvasElement>,
- *   template: TypedHelper<HTMLTemplateElement>,
- *   svg: TypedHelper<SVGSVGElement>,
- *   body: TypedHelper<HTMLBodyElement>,
- *   main: TypedHelper<HTMLElement>,
- *   section: TypedHelper<HTMLElement>,
- *   small: TypedHelper<HTMLElement>
+ *   el: TypedHelper<HTMLElement, N>,
+ *   input: TypedHelper<HTMLInputElement, N>,
+ *   button: TypedHelper<HTMLButtonElement, N>,
+ *   textarea: TypedHelper<HTMLTextAreaElement, N>,
+ *   select: TypedHelper<HTMLSelectElement, N>,
+ *   form: TypedHelper<HTMLFormElement, N>,
+ *   div: TypedHelper<HTMLDivElement, N>,
+ *   span: TypedHelper<HTMLSpanElement, N>,
+ *   label: TypedHelper<HTMLLabelElement, N>,
+ *   canvas: TypedHelper<HTMLCanvasElement, N>,
+ *   template: TypedHelper<HTMLTemplateElement, N>,
+ *   svg: TypedHelper<SVGSVGElement, N>,
+ *   body: TypedHelper<HTMLBodyElement, N>,
+ *   main: TypedHelper<HTMLElement, N>,
+ *   section: TypedHelper<HTMLElement, N>,
+ *   small: TypedHelper<HTMLElement, N>
  * }} DomApi
  */
 
@@ -341,8 +348,28 @@ function resolveLookup(config, spec) {
 // -----------------------------------------------------------------------------
 
 /**
- * Typed lookup by ID.
+ * Typed lookup by ID. In `'throw'` mode (the default) it returns the element
+ * or throws, so the result is never `null`.
  *
+ * @template {Element} T
+ * @overload
+ * @param {string} id
+ * @param {{ new (...args: any[]): T }} Type
+ * @param {DomConfig & { mode?: 'throw' }} [config]
+ * @returns {T}
+ */
+/**
+ * Typed lookup by ID with a `'null'` (or not statically known) mode: returns
+ * `T | null`.
+ *
+ * @template {Element} T
+ * @overload
+ * @param {string} id
+ * @param {{ new (...args: any[]): T }} Type
+ * @param {DomConfig} [config]
+ * @returns {T | null}
+ */
+/**
  * @template {Element} T
  * @param {string} id
  * @param {{ new (...args: any[]): T }} Type
@@ -401,16 +428,37 @@ export function byId(id, Type, config) {
  * @param {DomConfig} [config]
  * @returns {T | null}
  */
-byId.optional = function byIdOptional(id, Type, config) {
+function byIdOptional(id, Type, config) {
     return byId(id, Type, { ...config, mode: 'null' })
 }
 
-byId.opt = byId.optional
+byId.optional = byIdOptional
+byId.opt = byIdOptional
 
 /**
  * Tag-name lookup by element tag.
- * Useful when constructor checks are not the right fit.
+ * Useful when constructor checks are not the right fit. In `'throw'` mode
+ * (the default) the result is never `null`. It is typed `Element`, not the
+ * tag's interface: tag names match case-insensitively, so an SVG `<a>`
+ * matches `'a'`. Use `byId(id, HTMLDialogElement)` for a checked, precise
+ * type.
  *
+ * @overload
+ * @param {string} id
+ * @param {string} tagName
+ * @param {DomConfig & { mode?: 'throw' }} [config]
+ * @returns {Element}
+ */
+/**
+ * Tag-name lookup with a `'null'` (or not statically known) mode.
+ *
+ * @overload
+ * @param {string} id
+ * @param {string} tagName
+ * @param {DomConfig} [config]
+ * @returns {Element | null}
+ */
+/**
  * @param {string} id
  * @param {string} tagName
  * @param {DomConfig} [config]
@@ -469,11 +517,12 @@ export function tag(id, tagName, config) {
  * @param {DomConfig} [config]
  * @returns {Element | null}
  */
-tag.optional = function tagOptional(id, tagName, config) {
+function tagOptional(id, tagName, config) {
     return tag(id, tagName, { ...config, mode: 'null' })
 }
 
-tag.opt = tag.optional
+tag.optional = tagOptional
+tag.opt = tagOptional
 
 // -----------------------------------------------------------------------------
 // Helper registries
@@ -561,11 +610,26 @@ function makeTagHelper(tagName, base, baseNull) {
 // -----------------------------------------------------------------------------
 
 /**
- * Factory: scope getters to a specific root + default policy.
+ * Factory: scope getters to a specific root + default policy. A `'throw'`
+ * scope (the default) returns getters whose base calls never return `null`.
  *
+ * @overload
+ * @param {any} root
+ * @param {Omit<DomConfig, 'root'> & { mode?: 'throw' }} [config]
+ * @returns {DomApi}
+ */
+/**
+ * A `'null'` (or not statically known) scope: base calls return `T | null`.
+ *
+ * @overload
  * @param {any} root
  * @param {Omit<DomConfig, 'root'>} [config]
- * @returns {DomApi}
+ * @returns {DomApi<null>}
+ */
+/**
+ * @param {any} root
+ * @param {Omit<DomConfig, 'root'>} [config]
+ * @returns {any}
  */
 export function createDom(root, config) {
     const base = normalizeConfig({ ...config, root })
