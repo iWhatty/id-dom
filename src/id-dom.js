@@ -8,9 +8,6 @@
 // - Allow app/module-level defaults (throw vs null) without bundler magic
 // - Zero deps, framework-agnostic
 
-const DEFAULT_ROOT =
-    typeof document !== 'undefined' && document ? document : /** @type {any} */ (null)
-
 const REASON = /** @type {const} */ ({
     INVALID_ID: 'invalid-id',
     INVALID_TYPE: 'invalid-type',
@@ -63,7 +60,9 @@ const NEEDS_START_ESCAPE_RE = /^(?:\d|-\d)/
  * matches the throw / null semantics consumers already expect from the
  * browser path. (0.0.6 and 0.0.7 did this only for the named exports;
  * `createDom()` scopes and the default `dom` object left these helpers
- * undefined.)
+ * undefined.) The constructors, and the global `document` of a scope
+ * without a root, are read on each call, so a DOM installed after import
+ * is used from then on.
  *
  * `N` is what a base call can return besides the element: `never` for a
  * `'throw'`-mode scope (the default), `null` for a `'null'`-mode scope.
@@ -98,6 +97,35 @@ const NEEDS_START_ESCAPE_RE = /^(?:\d|-\d)/
  */
 
 // -----------------------------------------------------------------------------
+// Environment (read at call time, never at import)
+//
+// A DOM installed after id-dom is imported (a test setup, a late jsdom, SSR
+// then hydration) must reach every helper, and a DOM removed again must look
+// like the server. So the default root and the element constructors are read
+// on each lookup, not captured when the module loads.
+// -----------------------------------------------------------------------------
+
+/**
+ * The global `document`, or `null` without a DOM.
+ *
+ * @returns {any}
+ */
+function currentDocument() {
+    return typeof document !== 'undefined' && document ? document : null
+}
+
+/**
+ * A global element constructor by name (`'HTMLButtonElement'`), or
+ * `undefined` without a DOM.
+ *
+ * @param {string} name
+ * @returns {any}
+ */
+function domConstructor(name) {
+    return /** @type {any} */ (globalThis)[name]
+}
+
+// -----------------------------------------------------------------------------
 // Config
 // -----------------------------------------------------------------------------
 
@@ -109,7 +137,7 @@ function normalizeConfig(cfg) {
         mode: cfg?.mode ?? 'throw',
         warn: cfg?.warn ?? false,
         onError: typeof cfg?.onError === 'function' ? cfg.onError : null,
-        root: cfg?.root ?? DEFAULT_ROOT,
+        root: cfg?.root ?? currentDocument(),
     }
 }
 
@@ -539,27 +567,24 @@ tag.opt = tagOptional
 // Helper registries
 // -----------------------------------------------------------------------------
 
-const TYPE_HELPERS = /** @type {Record<string, any>} */ ({
-    el: typeof HTMLElement !== 'undefined' ? HTMLElement : null,
-    input: typeof HTMLInputElement !== 'undefined' ? HTMLInputElement : null,
-    button: typeof HTMLButtonElement !== 'undefined' ? HTMLButtonElement : null,
-    textarea: typeof HTMLTextAreaElement !== 'undefined' ? HTMLTextAreaElement : null,
-    select: typeof HTMLSelectElement !== 'undefined' ? HTMLSelectElement : null,
-    form: typeof HTMLFormElement !== 'undefined' ? HTMLFormElement : null,
-    div: typeof HTMLDivElement !== 'undefined' ? HTMLDivElement : null,
-    span: typeof HTMLSpanElement !== 'undefined' ? HTMLSpanElement : null,
-    label: typeof HTMLLabelElement !== 'undefined' ? HTMLLabelElement : null,
-    canvas: typeof HTMLCanvasElement !== 'undefined' ? HTMLCanvasElement : null,
-    template: typeof HTMLTemplateElement !== 'undefined' ? HTMLTemplateElement : null,
-    svg: typeof SVGSVGElement !== 'undefined' ? SVGSVGElement : null,
-    body: typeof HTMLBodyElement !== 'undefined' ? HTMLBodyElement : null,
+/** Typed helper name → global element constructor name, read at call time. */
+const TYPE_HELPERS = /** @type {Record<string, string>} */ ({
+    el: 'HTMLElement',
+    input: 'HTMLInputElement',
+    button: 'HTMLButtonElement',
+    textarea: 'HTMLTextAreaElement',
+    select: 'HTMLSelectElement',
+    form: 'HTMLFormElement',
+    div: 'HTMLDivElement',
+    span: 'HTMLSpanElement',
+    label: 'HTMLLabelElement',
+    canvas: 'HTMLCanvasElement',
+    template: 'HTMLTemplateElement',
+    svg: 'SVGSVGElement',
+    body: 'HTMLBodyElement',
 })
 
-const TAG_HELPERS = /** @type {Record<string, string>} */ ({
-    main: 'main',
-    section: 'section',
-    small: 'small',
-})
+const TAG_HELPERS = ['main', 'section', 'small']
 
 // -----------------------------------------------------------------------------
 // Helper builders
@@ -572,73 +597,54 @@ const TAG_HELPERS = /** @type {Record<string, string>} */ ({
  * @returns {T & { optional: Function, opt: Function }}
  */
 function attachOptional(fn, optionalFn) {
-    if (typeof fn !== 'function') {
-        throw new TypeError('id-dom: attachOptional expected fn to be a function')
-    }
-
-    if (typeof optionalFn !== 'function') {
-        throw new TypeError('id-dom: attachOptional expected optionalFn to be a function')
-    }
-
     fn.optional = optionalFn
     fn.opt = optionalFn
     return fn
 }
 
 /**
- * @param {any} Type
- * @param {ReturnType<typeof normalizeConfig>} base
- * @param {ReturnType<typeof normalizeConfig>} baseNull
- */
-function makeTypedHelper(Type, base, baseNull) {
-    if (!Type) {
-        throw new TypeError('id-dom: makeTypedHelper received an invalid Type')
-    }
-
-    return attachOptional(
-        (id) => byId(id, Type, base),
-        (id) => byId(id, Type, baseNull)
-    )
-}
-
-/**
- * @param {string} tagName
- * @param {ReturnType<typeof normalizeConfig>} base
- * @param {ReturnType<typeof normalizeConfig>} baseNull
- */
-function makeTagHelper(tagName, base, baseNull) {
-    if (!tagName) {
-        throw new TypeError('id-dom: makeTagHelper received an invalid tagName')
-    }
-
-    return attachOptional(
-        (id) => tag(id, tagName, base),
-        (id) => tag(id, tagName, baseNull)
-    )
-}
-
-/**
- * Stand-in for a typed helper when its global constructor is undefined
- * (Node without jsdom, edge runtimes): the type cannot be checked, so the
- * base call throws a clear "requires a DOM" error in a `'throw'` scope and
- * returns `null` in a `'null'` scope. `.optional` / `.opt` return `null`.
+ * A typed helper whose constructor is looked up by name on each call.
  *
- * @param {DomMode} mode
+ * Without a DOM (the global constructor is undefined: Node without jsdom,
+ * edge runtimes) the type cannot be checked, so the call throws a clear
+ * "requires a DOM" error in a `'throw'` scope and returns `null` in a
+ * `'null'` scope; `.optional` / `.opt` return `null`. Once a DOM is
+ * installed, the same helper does real lookups.
+ *
+ * @param {string} typeName
+ * @param {DomConfig} base
+ * @param {DomConfig} baseNull
  */
-function makeUnavailableHelper(mode) {
-    const unavailable = () => null
-    if (mode !== 'throw') return attachOptional(() => null, unavailable)
-
-    return attachOptional(function ssrUnavailable() {
+function makeTypedHelper(typeName, base, baseNull) {
+    /** @param {DomConfig} cfg */
+    const lookup = (cfg) => (/** @type {string} */ id) => {
+        const Type = domConstructor(typeName)
+        if (Type) return byId(id, Type, cfg)
+        if ((cfg.mode ?? 'throw') !== 'throw') return null
         throw new Error(
-            'id-dom: typed-element helper requires a DOM. The corresponding ' +
-            'HTMLElement constructor is undefined in this environment ' +
+            'id-dom: typed-element helper requires a DOM. The ' + typeName +
+            ' constructor is undefined in this environment ' +
             '(Node without jsdom, edge runtime, etc.). Guard SSR call sites, ' +
             'use a { mode: \'null\' } scope, or use the .optional variant, ' +
             'which returns null in non-DOM environments.'
         )
-    }, unavailable)
+    }
+
+    return attachOptional(lookup(base), lookup(baseNull))
 }
+
+/**
+ * @param {string} tagName
+ * @param {DomConfig} base
+ * @param {DomConfig} baseNull
+ */
+function makeTagHelper(tagName, base, baseNull) {
+    return attachOptional(
+        (/** @type {string} */ id) => tag(id, tagName, base),
+        (/** @type {string} */ id) => tag(id, tagName, baseNull)
+    )
+}
+
 // -----------------------------------------------------------------------------
 // Factory
 // -----------------------------------------------------------------------------
@@ -646,6 +652,8 @@ function makeUnavailableHelper(mode) {
 /**
  * Factory: scope getters to a specific root + default policy. A `'throw'`
  * scope (the default) returns getters whose base calls never return `null`.
+ * Without a `root` the scope uses the global `document` at the time of each
+ * lookup.
  *
  * @overload
  * @param {any} root
@@ -666,59 +674,53 @@ function makeUnavailableHelper(mode) {
  * @returns {any}
  */
 export function createDom(root, config) {
-    const base = normalizeConfig({ ...config, root })
-    const baseNull = { ...base, mode: 'null' }
+    // Normalized again on each lookup, so a missing root resolves then.
+    const base = { ...config, root }
+    const baseNull = { ...base, mode: /** @type {DomMode} */ ('null') }
 
     /** @type {any} */
     const api = {}
 
     api.byId = attachOptional(
-        (id, Type) => byId(id, Type, base),
-        (id, Type) => byId(id, Type, baseNull)
+        (/** @type {string} */ id, /** @type {any} */ Type) => byId(id, Type, base),
+        (/** @type {string} */ id, /** @type {any} */ Type) => byId(id, Type, baseNull)
     )
 
     api.tag = attachOptional(
-        (id, name) => tag(id, name, base),
-        (id, name) => tag(id, name, baseNull)
+        (/** @type {string} */ id, /** @type {string} */ name) => tag(id, name, base),
+        (/** @type {string} */ id, /** @type {string} */ name) => tag(id, name, baseNull)
     )
 
-    for (const [name, Type] of Object.entries(TYPE_HELPERS)) {
-        api[name] = Type
-            ? makeTypedHelper(Type, base, baseNull)
-            : makeUnavailableHelper(base.mode)
+    for (const name in TYPE_HELPERS) {
+        api[name] = makeTypedHelper(TYPE_HELPERS[name], base, baseNull)
     }
 
-    for (const [name, tagName] of Object.entries(TAG_HELPERS)) {
-        api[name] = makeTagHelper(tagName, base, baseNull)
+    for (const tagName of TAG_HELPERS) {
+        api[tagName] = makeTagHelper(tagName, base, baseNull)
     }
 
     return api
 }
 
 // -----------------------------------------------------------------------------
-// Default-root config (shared by the default export and the named typed helpers)
+// Default-root config (shared by the default export and the named helpers).
+// No root: each lookup uses the global `document` of that moment.
 // -----------------------------------------------------------------------------
 
-const DEFAULT_BASE = normalizeConfig({ mode: 'throw', root: DEFAULT_ROOT })
-const DEFAULT_BASE_NULL = { ...DEFAULT_BASE, mode: 'null' }
+/** @type {DomConfig} */
+const DEFAULT_BASE = { mode: 'throw' }
+/** @type {DomConfig} */
+const DEFAULT_BASE_NULL = { mode: 'null' }
 
 /**
  * Build a typed helper bound to the default root.
  * Internal — exposed via the per-helper named exports below.
  *
- * SSR-safe: when `Type` is null (the global constructor isn't defined —
- * Node without jsdom, edge runtimes, etc.) we return an *always-callable*
- * shim ({@link makeUnavailableHelper}) rather than the raw `null` that
- * pre-0.0.6 returned. The shim throws a clear "requires a DOM" error on the
- * base call and returns `null` on `.optional` / `.opt`. `createDom()` scopes
- * (and so the default `dom` object) use the same shim since 0.0.8.
- *
- * @param {any} Type
+ * @param {string} typeName global constructor name, read at call time
  * @returns {TypedHelper<any>}
  */
-function defaultTypedHelper(Type) {
-    if (Type) return makeTypedHelper(Type, DEFAULT_BASE, DEFAULT_BASE_NULL)
-    return /** @type {any} */ (makeUnavailableHelper('throw'))
+function defaultTypedHelper(typeName) {
+    return /** @type {any} */ (makeTypedHelper(typeName, DEFAULT_BASE, DEFAULT_BASE_NULL))
 }
 
 /**
@@ -731,44 +733,39 @@ function defaultTagHelper(tagName) {
 }
 
 // -----------------------------------------------------------------------------
-// Named typed-element helpers (per-helper exports — tree-shakeable)
+// Named typed-element helpers (per-helper exports)
 //
-// Each one is a `const` initialized to a tiny closure produced by
-// makeTypedHelper. Modern bundlers (esbuild, rollup, vite) drop the
-// unused ones because the package declares sideEffects: false.
-//
-// SSR-safe: in environments where the corresponding global constructor
-// isn't defined (Node without jsdom, etc.), the export is a callable shim
-// whose base call throws "requires a DOM" and whose .optional/.opt return
-// null (see defaultTypedHelper).
+// SSR-safe: without a DOM, a helper's base call throws "requires a DOM" and
+// its .optional/.opt return null (see makeTypedHelper). A DOM installed after
+// import is picked up on the next call.
 // -----------------------------------------------------------------------------
 
 /** @type {TypedHelper<HTMLElement>} */
-export const el       = defaultTypedHelper(typeof HTMLElement         !== 'undefined' ? HTMLElement         : null)
+export const el       = defaultTypedHelper('HTMLElement')
 /** @type {TypedHelper<HTMLInputElement>} */
-export const input    = defaultTypedHelper(typeof HTMLInputElement    !== 'undefined' ? HTMLInputElement    : null)
+export const input    = defaultTypedHelper('HTMLInputElement')
 /** @type {TypedHelper<HTMLButtonElement>} */
-export const button   = defaultTypedHelper(typeof HTMLButtonElement   !== 'undefined' ? HTMLButtonElement   : null)
+export const button   = defaultTypedHelper('HTMLButtonElement')
 /** @type {TypedHelper<HTMLTextAreaElement>} */
-export const textarea = defaultTypedHelper(typeof HTMLTextAreaElement !== 'undefined' ? HTMLTextAreaElement : null)
+export const textarea = defaultTypedHelper('HTMLTextAreaElement')
 /** @type {TypedHelper<HTMLSelectElement>} */
-export const select   = defaultTypedHelper(typeof HTMLSelectElement   !== 'undefined' ? HTMLSelectElement   : null)
+export const select   = defaultTypedHelper('HTMLSelectElement')
 /** @type {TypedHelper<HTMLFormElement>} */
-export const form     = defaultTypedHelper(typeof HTMLFormElement     !== 'undefined' ? HTMLFormElement     : null)
+export const form     = defaultTypedHelper('HTMLFormElement')
 /** @type {TypedHelper<HTMLDivElement>} */
-export const div      = defaultTypedHelper(typeof HTMLDivElement      !== 'undefined' ? HTMLDivElement      : null)
+export const div      = defaultTypedHelper('HTMLDivElement')
 /** @type {TypedHelper<HTMLSpanElement>} */
-export const span     = defaultTypedHelper(typeof HTMLSpanElement     !== 'undefined' ? HTMLSpanElement     : null)
+export const span     = defaultTypedHelper('HTMLSpanElement')
 /** @type {TypedHelper<HTMLLabelElement>} */
-export const label    = defaultTypedHelper(typeof HTMLLabelElement    !== 'undefined' ? HTMLLabelElement    : null)
+export const label    = defaultTypedHelper('HTMLLabelElement')
 /** @type {TypedHelper<HTMLCanvasElement>} */
-export const canvas   = defaultTypedHelper(typeof HTMLCanvasElement   !== 'undefined' ? HTMLCanvasElement   : null)
+export const canvas   = defaultTypedHelper('HTMLCanvasElement')
 /** @type {TypedHelper<HTMLTemplateElement>} */
-export const template = defaultTypedHelper(typeof HTMLTemplateElement !== 'undefined' ? HTMLTemplateElement : null)
+export const template = defaultTypedHelper('HTMLTemplateElement')
 /** @type {TypedHelper<SVGSVGElement>} */
-export const svg      = defaultTypedHelper(typeof SVGSVGElement       !== 'undefined' ? SVGSVGElement       : null)
+export const svg      = defaultTypedHelper('SVGSVGElement')
 /** @type {TypedHelper<HTMLBodyElement>} */
-export const body     = defaultTypedHelper(typeof HTMLBodyElement     !== 'undefined' ? HTMLBodyElement     : null)
+export const body     = defaultTypedHelper('HTMLBodyElement')
 
 // Named tag-name helpers (no dedicated constructor — return base Element)
 /** @type {TypedHelper<HTMLElement>} */
@@ -779,10 +776,11 @@ export const section = defaultTagHelper('section')
 export const small   = defaultTagHelper('small')
 
 // -----------------------------------------------------------------------------
-// Default export — the convenience object aggregating every helper. Use
-// named imports above for tree-shake-friendly bundles; use this default
-// when you want all helpers under one namespace (`dom.button(…)`).
+// Default export — the convenience object aggregating every helper, bound to
+// the global `document` of each lookup. Use named imports above for
+// tree-shake-friendly bundles; use this default when you want all helpers
+// under one namespace (`dom.button(…)`).
 // -----------------------------------------------------------------------------
 
-const dom = createDom(DEFAULT_ROOT, { mode: 'throw' })
+const dom = createDom(undefined, { mode: 'throw' })
 export default dom
