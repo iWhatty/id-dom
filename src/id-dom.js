@@ -415,7 +415,7 @@ function resolveLookup(config, spec) {
  * @param {DomConfig} [config]
  * @returns {T | null}
  */
-export function byId(id, Type, config) {
+function byId(id, Type, config) {
     return resolveLookup(config, {
         id,
 
@@ -471,8 +471,14 @@ function byIdOptional(id, Type, config) {
     return byId(id, Type, { ...config, mode: 'null' })
 }
 
-byId.optional = byIdOptional
-byId.opt = byIdOptional
+// Exported as `byId`. Attaching `.optional` / `.opt` in a pure call, not by
+// module-level assignment, lets a bundler drop `byId` when it is unused.
+/**
+ * Typed lookup by ID (see the overloads of `byId`). `.optional` / `.opt`
+ * return `T | null`.
+ */
+const byIdWithOptional = /* @__PURE__ */ attachOptional(byId, byIdOptional)
+export { byIdWithOptional as byId }
 
 /**
  * Tag-name lookup by element tag.
@@ -503,7 +509,7 @@ byId.opt = byIdOptional
  * @param {DomConfig} [config]
  * @returns {Element | null}
  */
-export function tag(id, tagName, config) {
+function tag(id, tagName, config) {
     return resolveLookup(config, {
         id,
 
@@ -560,8 +566,13 @@ function tagOptional(id, tagName, config) {
     return tag(id, tagName, { ...config, mode: 'null' })
 }
 
-tag.optional = tagOptional
-tag.opt = tagOptional
+// Exported as `tag`; see `byIdWithOptional`.
+/**
+ * Tag-name lookup by element tag (see the overloads of `tag`). `.optional` /
+ * `.opt` return `Element | null`.
+ */
+const tagWithOptional = /* @__PURE__ */ attachOptional(tag, tagOptional)
+export { tagWithOptional as tag }
 
 // -----------------------------------------------------------------------------
 // Helper registries
@@ -591,10 +602,11 @@ const TAG_HELPERS = ['main', 'section', 'small']
 // -----------------------------------------------------------------------------
 
 /**
- * @template {Function} T
- * @param {T} fn
- * @param {Function} optionalFn
- * @returns {T & { optional: Function, opt: Function }}
+ * @template {Function} F
+ * @template {Function} O
+ * @param {F} fn
+ * @param {O} optionalFn
+ * @returns {F & { optional: O, opt: O }}
  */
 function attachOptional(fn, optionalFn) {
     fn.optional = optionalFn
@@ -735,45 +747,49 @@ function defaultTagHelper(tagName) {
 // -----------------------------------------------------------------------------
 // Named typed-element helpers (per-helper exports)
 //
+// Each is built in a call annotated pure and nothing else at module level
+// refers to it, so a bundler drops every helper a consumer does not import
+// (and the default `dom` object below, unless it is imported).
+//
 // SSR-safe: without a DOM, a helper's base call throws "requires a DOM" and
 // its .optional/.opt return null (see makeTypedHelper). A DOM installed after
 // import is picked up on the next call.
 // -----------------------------------------------------------------------------
 
 /** @type {TypedHelper<HTMLElement>} */
-export const el       = defaultTypedHelper('HTMLElement')
+export const el       = /* @__PURE__ */ defaultTypedHelper('HTMLElement')
 /** @type {TypedHelper<HTMLInputElement>} */
-export const input    = defaultTypedHelper('HTMLInputElement')
+export const input    = /* @__PURE__ */ defaultTypedHelper('HTMLInputElement')
 /** @type {TypedHelper<HTMLButtonElement>} */
-export const button   = defaultTypedHelper('HTMLButtonElement')
+export const button   = /* @__PURE__ */ defaultTypedHelper('HTMLButtonElement')
 /** @type {TypedHelper<HTMLTextAreaElement>} */
-export const textarea = defaultTypedHelper('HTMLTextAreaElement')
+export const textarea = /* @__PURE__ */ defaultTypedHelper('HTMLTextAreaElement')
 /** @type {TypedHelper<HTMLSelectElement>} */
-export const select   = defaultTypedHelper('HTMLSelectElement')
+export const select   = /* @__PURE__ */ defaultTypedHelper('HTMLSelectElement')
 /** @type {TypedHelper<HTMLFormElement>} */
-export const form     = defaultTypedHelper('HTMLFormElement')
+export const form     = /* @__PURE__ */ defaultTypedHelper('HTMLFormElement')
 /** @type {TypedHelper<HTMLDivElement>} */
-export const div      = defaultTypedHelper('HTMLDivElement')
+export const div      = /* @__PURE__ */ defaultTypedHelper('HTMLDivElement')
 /** @type {TypedHelper<HTMLSpanElement>} */
-export const span     = defaultTypedHelper('HTMLSpanElement')
+export const span     = /* @__PURE__ */ defaultTypedHelper('HTMLSpanElement')
 /** @type {TypedHelper<HTMLLabelElement>} */
-export const label    = defaultTypedHelper('HTMLLabelElement')
+export const label    = /* @__PURE__ */ defaultTypedHelper('HTMLLabelElement')
 /** @type {TypedHelper<HTMLCanvasElement>} */
-export const canvas   = defaultTypedHelper('HTMLCanvasElement')
+export const canvas   = /* @__PURE__ */ defaultTypedHelper('HTMLCanvasElement')
 /** @type {TypedHelper<HTMLTemplateElement>} */
-export const template = defaultTypedHelper('HTMLTemplateElement')
+export const template = /* @__PURE__ */ defaultTypedHelper('HTMLTemplateElement')
 /** @type {TypedHelper<SVGSVGElement>} */
-export const svg      = defaultTypedHelper('SVGSVGElement')
+export const svg      = /* @__PURE__ */ defaultTypedHelper('SVGSVGElement')
 /** @type {TypedHelper<HTMLBodyElement>} */
-export const body     = defaultTypedHelper('HTMLBodyElement')
+export const body     = /* @__PURE__ */ defaultTypedHelper('HTMLBodyElement')
 
 // Named tag-name helpers (no dedicated constructor — return base Element)
 /** @type {TypedHelper<HTMLElement>} */
-export const main    = defaultTagHelper('main')
+export const main    = /* @__PURE__ */ defaultTagHelper('main')
 /** @type {TypedHelper<HTMLElement>} */
-export const section = defaultTagHelper('section')
+export const section = /* @__PURE__ */ defaultTagHelper('section')
 /** @type {TypedHelper<HTMLElement>} */
-export const small   = defaultTagHelper('small')
+export const small   = /* @__PURE__ */ defaultTagHelper('small')
 
 // -----------------------------------------------------------------------------
 // Default export — the convenience object aggregating every helper, bound to
@@ -782,5 +798,5 @@ export const small   = defaultTagHelper('small')
 // under one namespace (`dom.button(…)`).
 // -----------------------------------------------------------------------------
 
-const dom = createDom(undefined, { mode: 'throw' })
+const dom = /* @__PURE__ */ createDom(undefined, { mode: 'throw' })
 export default dom
