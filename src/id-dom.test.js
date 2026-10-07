@@ -1,5 +1,6 @@
 // id-dom.test.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { JSDOM } from 'jsdom'
 import dom, { byId, tag, createDom } from './id-dom.js'
 
 describe('id-dom', () => {
@@ -185,6 +186,44 @@ describe('id-dom', () => {
     expect(() => tag('appMain', '')).toThrow(/invalid tag/i)
   })
 
+
+  it('a function that cannot be a Type (no prototype) is an invalid Type, not a TypeError', () => {
+    const arrow = () => {}
+    const onError = vi.fn()
+
+    expect(byId.optional('saveBtn', arrow)).toBeNull()
+    expect(() => byId('saveBtn', arrow)).toThrow(/invalid type/i)
+    expect(byId('saveBtn', arrow, { mode: 'null', onError })).toBeNull()
+    expect(onError.mock.calls[0][1]).toMatchObject({ id: 'saveBtn', reason: 'invalid-type' })
+  })
+
+  it('an Element root from another window (iframe, second jsdom) finds its elements', () => {
+    const other = new JSDOM('<!doctype html><body><main id="otherMain"></main></body>')
+    const root = other.window.document.body
+
+    expect(tag('otherMain', 'main', { root })).toBe(root.firstElementChild)
+    expect(tag.optional('nope', 'main', { root })).toBeNull()
+  })
+
+  it.each([
+    ['-'], ['--'], ['-1'], ['1a'], ['a.b'], ['a:b'], ['a#b'], ['a b'], ['été'], ['_'],
+  ])('Element roots find odd but valid ids without CSS.escape: %j', (id) => {
+    expect(typeof CSS).toBe('undefined') // the internal fallback is in use
+    const container = document.createElement('div')
+    const target = document.createElement('div')
+    target.setAttribute('id', id)
+    container.append(document.createElement('span'), target)
+
+    expect(createDom(container).div(id)).toBe(target)
+  })
+
+  it('the CSS.escape fallback escapes a lone "-" as CSS.escape does', () => {
+    const selectors = []
+    const root = { querySelector: (sel) => { selectors.push(sel); return null } }
+
+    expect(createDom(root, { mode: 'null' }).div('-')).toBeNull()
+    expect(selectors).toEqual(['#\\-'])
+  })
 
   it('tag can validate non-HTMLElement elements if tag matches', () => {
     const container = document.createElement('div')

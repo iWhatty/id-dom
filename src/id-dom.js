@@ -164,11 +164,12 @@ function cssEscape(id) {
         const next = s.codePointAt(i + 1)
         const startsWithDigit = cp >= 48 && cp <= 57
         const startsWithDashDigit = cp === 45 && s.length > 1 && next >= 48 && next <= 57
-        const needsStartEscape = i === 0 && (startsWithDigit || startsWithDashDigit)
+        const isLoneDash = cp === 45 && s.length === 1 // `#-` is not a valid ID selector
+        const needsStartEscape = i === 0 && (startsWithDigit || startsWithDashDigit || isLoneDash)
 
         if (!needsStartEscape && (isAsciiSafe || cp >= 0x00a0)) {
             out += ch
-        } else if (i === 0 && startsWithDashDigit) {
+        } else if (i === 0 && (startsWithDashDigit || isLoneDash)) {
             out += '\\-'
         } else {
             out += `\\${cp.toString(16).toUpperCase()} `
@@ -181,20 +182,21 @@ function cssEscape(id) {
 }
 
 /**
+ * Element check by node type, not `instanceof Element`, so an element from
+ * another window (an iframe, a second jsdom) is still an element.
+ *
  * @param {unknown} v
  * @returns {v is Element}
  */
 function isElementNode(v) {
-    if (!v || typeof v !== 'object') return false
-    if (typeof Element !== 'undefined') return v instanceof Element
-    return /** @type {any} */ (v).nodeType === 1
+    return !!v && typeof v === 'object' && /** @type {any} */ (v).nodeType === 1
 }
 
 /**
  * Resolve an element by id from a root.
  * Supports:
- *  - Document (getElementById)
- *  - ShadowRoot / DocumentFragment / Element (querySelector fallback)
+ *  - Document / ShadowRoot / DocumentFragment (getElementById)
+ *  - Element (querySelector fallback; searches descendants only)
  *
  * @param {any} root
  * @param {string} id
@@ -234,11 +236,17 @@ function isValidTagName(v) {
 }
 
 /**
+ * A usable `instanceof` right-hand side: a function with an object
+ * `prototype`. Arrow functions and methods have none, and `instanceof` would
+ * throw a TypeError for them.
+ *
  * @param {unknown} v
  * @returns {v is Function}
  */
 function isConstructor(v) {
-    return typeof v === 'function'
+    if (typeof v !== 'function') return false
+    const proto = /** @type {any} */ (v).prototype
+    return typeof proto === 'object' && proto !== null
 }
 
 // -----------------------------------------------------------------------------
