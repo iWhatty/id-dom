@@ -4,8 +4,27 @@
 
 ## 0.0.8 — 2026-10-07
 
-Runtime fixes, a packaging fix for CommonJS types, and dev-tooling updates. No API or type signature changes.
+Runtime fixes (among them: a DOM installed after import now works), a build fix (unused helpers tree-shake away), a packaging fix for CommonJS types, and dev-tooling updates. No API or type signature changes.
 
+- **fix (runtime): the default `document` and the element constructors are read at call time.**
+  - Before, both were captured once, when the module loaded. A DOM installed after import (a test setup, a late jsdom, SSR then hydration) never reached the named helpers, the default `dom` object, or a `createDom()` scope without a root. In Node, importing id-dom and then setting `globalThis.document` and `globalThis.HTMLElement` left `el('x')` throwing "requires a DOM" for ever after.
+  - Each lookup now reads `globalThis[constructorName]` (`'HTMLButtonElement'`, ...) and, when no root was given, the global `document`. A DOM removed again behaves like the server (see the SSR fix below). An explicit root (`createDom(root)`, `{ root }`) is used as before.
+  - With a DOM at import, behaviour is unchanged. One difference: `createDom()` without a root used the `document` of the moment it was called; it now uses the `document` of each lookup.
+  - The "requires a DOM" error now names the missing constructor.
+- **perf (build): unused helpers and the default object tree-shake away.**
+  - Bundlers (esbuild; Parcel with Terser, as measured by dice3D-js) kept all 16 helpers, both helper registries, `createDom` and the default `dom` object, whatever was imported. The helpers and `dom` were built by module-level calls without `/* @__PURE__ */`, and `byId.optional = ...` / `tag.optional = ...` were module-level assignments, which bundlers treat as side effects.
+  - Those calls are now annotated pure, and `byId` / `tag` get `.optional` / `.opt` in an annotated call. `byId.opt === byId.optional` still holds, and `byId.name` is still `"byId"`.
+  - esbuild's whitespace minification drops every comment, so `build.js` puts the annotations back into `dist/index.min.js`, at the positions the sourcemap gives for each annotated call. The build fails if one does not map.
+  - Consumer bundle sizes, esbuild 0.28.2 (`bundle`, `minify`, tree shaking) of `dist/index.js`, bytes raw / gzip -9. `dist/index.min.js` is within 2 bytes gzip.
+
+    | Import | 0.0.7 | 0.0.8 |
+    | --- | --- | --- |
+    | `{ button }` | 6,129 / 2,094 | 3,127 / 1,415 |
+    | `{ byId }` | 6,141 / 2,097 | 2,658 / 1,179 |
+    | `import dom` (default) | 6,141 / 2,100 | 4,398 / 1,773 |
+    | `{ button, div, el, form, input, select, byId }` | 6,136 / 2,100 | 3,315 / 1,484 |
+
+- **types: `byId` and `tag` are declared as aliases** (`typeof byId & { optional, opt }`) instead of a function plus a namespace, a side effect of the tree-shaking fix. Their call signatures, `.optional` and `.opt` are the same, and the type tests pass unchanged.
 - **fix(ssr): `createDom()` scopes and the default `dom` object keep every helper.**
   - 0.0.6 made the named typed helpers (`input`, `button`, ...) callable without a DOM, but `createDom()` skipped a helper whose global constructor is undefined. So on the server `dom.input('x')` failed with `TypeError: dom.input is not a function`, though the types and the `DomApi` docs promise the helper.
   - Every scope now gets the same shim: the base call throws "requires a DOM" in a `'throw'` scope and returns `null` in a `'null'` scope. `.optional` / `.opt` return `null`.
@@ -19,13 +38,15 @@ Runtime fixes, a packaging fix for CommonJS types, and dev-tooling updates. No A
 - **test: check what ships.**
   - `test/dist.test.js` runs the core contract against `dist/index.js`, `index.min.js`, and `index.cjs`. It also checks that no build reads a free Node global (`process`, `Buffer`, `global`, `setImmediate`, `require`, ...), `typeof` checks included.
   - `test/ssr.test.js` runs without a DOM against the source and every build.
+  - `test/late-dom.test.js` installs a DOM after import, then removes it, for the source and every build.
+  - `test/tree-shake.test.js` bundles one-helper consumers of `dist/index.js` and `dist/index.min.js` with esbuild. It checks gzip budgets, and that the other helpers, `tag()` or `byId()` where unused, the registries and `createDom` are gone.
   - `test/types/node16` imports the package by name from a `.cts` and a `.mts` consumer, and `./min` too. `test/types/readme.types.ts` compiles every README example.
   - `npm test` now builds first.
 - docs(README): the scoped-root examples now use `dom.el(id)`. They used `document.querySelector`, whose `Element | null` result did not compile in strict TypeScript. Corrected which roots use `getElementById`, and documented `root`, the `onError` reasons, SSR, CommonJS, and cross-window elements.
 - chore(deps), dev tooling only: `npm audit` went from 11 advisories (2 critical, 7 high, 1 moderate, 1 low) to 0.
   - Updated `esbuild` to `^0.28.2` (GHSA-g7r4-m6w7-qqqr) and `vitest` to `^4.1.11` (@vitest/mocker, tinypool, vite). `form-data` and `ws` under jsdom were updated too.
   - Every new lockfile entry is at least 7 days old.
-  - The built `dist` is byte-identical with the new esbuild.
+  - The built `dist` was byte-identical with the new esbuild (before the fixes above).
   - Development now needs Node 20 or newer (vitest 4). The package itself still supports Node 18 and later.
 
 ## 0.0.7 — 2026-10-07

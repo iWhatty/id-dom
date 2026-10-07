@@ -44,9 +44,8 @@ saveBtn.addEventListener('click', save)
 
 ```js
 // Named-import style, added in 0.0.5. Makes the dependency surface explicit
-// in the import declaration. Tree-shaken identically by modern bundlers
-// (esbuild, vite, rollup, webpack 5) since the package ships
-// `sideEffects: false`.
+// in the import declaration, and since 0.0.8 a bundler keeps only the
+// helpers you import (see the bundle-size note).
 import { button, input, div } from 'id-dom'
 
 const saveBtn = button('saveBtn')
@@ -70,7 +69,7 @@ const maybeCanvas = canvas.opt('game')          // named style
 
 ### Default export: `dom`
 
-The default export is a scoped instance using `document` (when available) with **strict** behavior:
+The default export is a scoped instance using the global `document` (read at each lookup) with **strict** behavior:
 
 - missing element → **throws**
 - wrong type or wrong tag → **throws**
@@ -89,6 +88,7 @@ Create a scoped instance that searches within a specific root:
 
 - `document`, `ShadowRoot`, or `DocumentFragment` → uses `getElementById`
 - `Element` → uses a `querySelector(#id)` fallback, which searches the element's descendants (not the element itself)
+- no root (`undefined` or `null`) → the global `document` at the time of each lookup
 
 ```js
 import { createDom } from 'id-dom'
@@ -245,7 +245,7 @@ When a scoped root does not support `getElementById` (an `Element`), id-dom fall
 
 ### Bundle-size note
 
-The shared lookup machinery (validation, CSS-escape fallback, error policy, root resolution) is the bulk of the package, roughly 1.9 KB gzipped in a modern bundler. Importing 4 helpers vs 1 vs the full default object lands in the same ballpark. The named-import style is recommended for readability and explicit-surface clarity, not for size.
+Since 0.0.8 every helper and the default `dom` object are built in calls marked `/* @__PURE__ */` (kept in `id-dom/min` too), so a bundler drops what you do not import. With esbuild (bundle, minify, gzip -9), `{ byId }` is about 1.2 KB, `{ button }` about 1.4 KB, seven helpers about 1.5 KB, and the default `dom` object (every helper) about 1.8 KB. 0.0.7 shipped about 2.1 KB whatever you imported. The shared lookup machinery (validation, CSS-escape fallback, error policy, root resolution) is most of each figure.
 
 ### Scoped roots
 
@@ -288,6 +288,8 @@ const icon = d.svg('logoMark')
 ### Server-side rendering
 
 Importing id-dom without a DOM (Node without jsdom, edge runtimes) is safe. Every helper stays callable: a typed getter (`input`, `button`, ...) throws a clear "requires a DOM" error in a `'throw'` scope and returns `null` in a `'null'` scope, and `.optional` / `.opt` return `null`. This holds for the named exports, the default `dom` object, and `createDom()` scopes (the last two since 0.0.8).
+
+The DOM can be installed after import (a test setup, a late jsdom, hydration): since 0.0.8 id-dom reads the global `document` and the element constructors (`globalThis.HTMLButtonElement`, ...) on each lookup, so the same helpers start finding elements once they exist, and behave as above again if the DOM is removed. A root passed to `createDom(root)` or `{ root }` is always used as given.
 
 ### CommonJS
 
