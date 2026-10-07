@@ -17,9 +17,7 @@
       "require": {
         "types": "./dist/types/id-dom.d.cts",
         "default": "./dist/index.cjs"
-      },
-      "types": "./dist/types/id-dom.d.ts",
-      "default": "./dist/index.js"
+      }
     },
     "./min": {
       "types": "./dist/types/id-dom.d.ts",
