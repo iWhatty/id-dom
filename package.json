@@ -10,9 +10,15 @@
   "types": "./dist/types/id-dom.d.ts",
   "exports": {
     ".": {
+      "import": {
+        "types": "./dist/types/id-dom.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/types/id-dom.d.cts",
+        "default": "./dist/index.cjs"
+      },
       "types": "./dist/types/id-dom.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
       "default": "./dist/index.js"
     },
     "./min": {
@@ -49,10 +55,10 @@
   ],
   "scripts": {
     "build": "node build.js",
-    "build:types": "tsc -p tsconfig.types.json",
+    "build:types": "tsc -p tsconfig.types.json && node -e \"require('node:fs').copyFileSync('dist/types/id-dom.d.ts', 'dist/types/id-dom.d.cts')\"",
     "prepublishOnly": "npm run build && npm run build:types && npm test",
     "test": "npm run build && vitest run --environment jsdom && npm run test:types",
-    "test:types": "npm run build:types && tsc -p test/types/tsconfig.json && tsc -p test/types/tsconfig.loose.json",
+    "test:types": "npm run build:types && tsc -p test/types/tsconfig.json && tsc -p test/types/tsconfig.loose.json && tsc -p test/types/node16/tsconfig.json",
     "test:watch": "vitest --environment jsdom"
   },
   "devDependencies": {
