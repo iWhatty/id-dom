@@ -2,6 +2,32 @@
 
 > Initial cut seeded from `git log` by the host repo's `tools/seed-changelogs.mjs` script. Version groupings infer release boundaries from tags and commit subjects; rough cuts are expected — review and tighten as part of normal maintenance.
 
+## 0.0.8 — 2026-10-07
+
+Runtime fixes, a packaging fix for CommonJS types, and dev-tooling updates. No API or type signature changes.
+
+- **fix(ssr): `createDom()` scopes and the default `dom` object keep every helper.**
+  - 0.0.6 made the named typed helpers (`input`, `button`, ...) callable without a DOM, but `createDom()` skipped a helper whose global constructor is undefined. So on the server `dom.input('x')` failed with `TypeError: dom.input is not a function`, though the types and the `DomApi` docs promise the helper.
+  - Every scope now gets the same shim: the base call throws "requires a DOM" in a `'throw'` scope and returns `null` in a `'null'` scope. `.optional` / `.opt` return `null`.
+  - The error message no longer suggests `createDom()` with a custom root, which could not help.
+- **fix(types): CommonJS consumers get CommonJS declarations.**
+  - `exports["."].require` resolved its types to `id-dom.d.ts`, which TypeScript reads as an ES module because the package is `"type": "module"`. Under `module: node16`, `require('id-dom')` failed with TS1471, although `dist/index.cjs` works.
+  - `build:types` now also writes `dist/types/id-dom.d.cts`, and each condition has its own `types`. The unreachable `types` / `default` entries after `import` / `require` are gone.
+- **fix: a function without a `prototype` is an invalid `Type`.** `byId(id, () => {})` reached `instanceof` and threw a raw `TypeError`, even from `byId.optional` and in `'null'` mode, without calling `onError`. It is now reason `'invalid-type'` and follows the mode.
+- **fix: `Element` roots from another window find their elements.** The `querySelector` result was checked with this window's `instanceof Element`, so `tag(id, 'main', { root: frameDocument.body })` reported `missing`. The check is now `nodeType === 1`.
+- **fix: the `CSS.escape` fallback escapes a lone `-` id** as `\-`, like `CSS.escape`. It built `#-`, which is not a valid ID selector.
+- **test: check what ships.**
+  - `test/dist.test.js` runs the core contract against `dist/index.js`, `index.min.js`, and `index.cjs`. It also checks that no build reads a free Node global (`process`, `Buffer`, `global`, `setImmediate`, `require`, ...), `typeof` checks included.
+  - `test/ssr.test.js` runs without a DOM against the source and every build.
+  - `test/types/node16` imports the package by name from a `.cts` and a `.mts` consumer, and `./min` too. `test/types/readme.types.ts` compiles every README example.
+  - `npm test` now builds first.
+- docs(README): the scoped-root examples now use `dom.el(id)`. They used `document.querySelector`, whose `Element | null` result did not compile in strict TypeScript. Corrected which roots use `getElementById`, and documented `root`, the `onError` reasons, SSR, CommonJS, and cross-window elements.
+- chore(deps), dev tooling only: `npm audit` went from 11 advisories (2 critical, 7 high, 1 moderate, 1 low) to 0.
+  - Updated `esbuild` to `^0.28.2` (GHSA-g7r4-m6w7-qqqr) and `vitest` to `^4.1.11` (@vitest/mocker, tinypool, vite). `form-data` and `ws` under jsdom were updated too.
+  - Every new lockfile entry is at least 7 days old.
+  - The built `dist` is byte-identical with the new esbuild.
+  - Development now needs Node 20 or newer (vitest 4). The package itself still supports Node 18 and later.
+
 ## 0.0.7 — 2026-10-07
 
 Types only: the runtime behaviour is unchanged.
