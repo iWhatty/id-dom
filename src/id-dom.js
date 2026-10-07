@@ -55,12 +55,15 @@ const NEEDS_START_ESCAPE_RE = /^(?:\d|-\d)/
  * Aggregate API returned by {@link createDom}. Mirrors the named exports
  * but is scoped to the configured root.
  *
- * SSR behavior (0.0.6+): typed-element helpers are *always callable*.
+ * SSR behavior (0.0.8+): typed-element helpers are *always callable*.
  * In a non-DOM environment where the corresponding global constructor
  * is undefined (Node without jsdom, edge runtimes), the base call
- * throws a clear "DOM required" error and `.optional` / `.opt` return
- * `null`. This matches the throw / null semantics consumers already
- * expect from the browser path.
+ * throws a clear "requires a DOM" error in a `'throw'` scope and returns
+ * `null` in a `'null'` scope; `.optional` / `.opt` return `null`. This
+ * matches the throw / null semantics consumers already expect from the
+ * browser path. (0.0.6 and 0.0.7 did this only for the named exports;
+ * `createDom()` scopes and the default `dom` object left these helpers
+ * undefined.)
  *
  * `N` is what a base call can return besides the element: `never` for a
  * `'throw'`-mode scope (the default), `null` for a `'null'`-mode scope.
@@ -605,6 +608,29 @@ function makeTagHelper(tagName, base, baseNull) {
         (id) => tag(id, tagName, baseNull)
     )
 }
+
+/**
+ * Stand-in for a typed helper when its global constructor is undefined
+ * (Node without jsdom, edge runtimes): the type cannot be checked, so the
+ * base call throws a clear "requires a DOM" error in a `'throw'` scope and
+ * returns `null` in a `'null'` scope. `.optional` / `.opt` return `null`.
+ *
+ * @param {DomMode} mode
+ */
+function makeUnavailableHelper(mode) {
+    const unavailable = () => null
+    if (mode !== 'throw') return attachOptional(() => null, unavailable)
+
+    return attachOptional(function ssrUnavailable() {
+        throw new Error(
+            'id-dom: typed-element helper requires a DOM. The corresponding ' +
+            'HTMLElement constructor is undefined in this environment ' +
+            '(Node without jsdom, edge runtime, etc.). Guard SSR call sites, ' +
+            'use a { mode: \'null\' } scope, or use the .optional variant, ' +
+            'which returns null in non-DOM environments.'
+        )
+    }, unavailable)
+}
 // -----------------------------------------------------------------------------
 // Factory
 // -----------------------------------------------------------------------------
@@ -649,8 +675,9 @@ export function createDom(root, config) {
     )
 
     for (const [name, Type] of Object.entries(TYPE_HELPERS)) {
-        if (!Type) continue
-        api[name] = makeTypedHelper(Type, base, baseNull)
+        api[name] = Type
+            ? makeTypedHelper(Type, base, baseNull)
+            : makeUnavailableHelper(base.mode)
     }
 
     for (const [name, tagName] of Object.entries(TAG_HELPERS)) {
@@ -673,33 +700,17 @@ const DEFAULT_BASE_NULL = { ...DEFAULT_BASE, mode: 'null' }
  *
  * SSR-safe: when `Type` is null (the global constructor isn't defined —
  * Node without jsdom, edge runtimes, etc.) we return an *always-callable*
- * shim rather than the raw `null` that pre-0.0.6 returned. The shim
- * throws a clear "DOM required" error on the base call (matches the
- * browser's `mode: 'throw'` semantic) and returns `null` on `.optional` /
- * `.opt` (matches the browser's `mode: 'null'` semantic for opt-in
- * tolerant callers). Closes the historical footgun where SSR consumers
- * hit `TypeError: input is not a function` instead of an actionable
- * message. See host carry-forward #6 for the full context.
+ * shim ({@link makeUnavailableHelper}) rather than the raw `null` that
+ * pre-0.0.6 returned. The shim throws a clear "requires a DOM" error on the
+ * base call and returns `null` on `.optional` / `.opt`. `createDom()` scopes
+ * (and so the default `dom` object) use the same shim since 0.0.8.
  *
  * @param {any} Type
  * @returns {TypedHelper<any>}
  */
 function defaultTypedHelper(Type) {
     if (Type) return makeTypedHelper(Type, DEFAULT_BASE, DEFAULT_BASE_NULL)
-
-    const ssrThrow = /** @type {any} */ (function ssrUnavailable() {
-        throw new Error(
-            'id-dom: typed-element helper requires a DOM. The corresponding ' +
-            'HTMLElement constructor is undefined in this environment ' +
-            '(Node without jsdom, edge runtime, etc.). Use createDom() with ' +
-            'a custom root, or guard SSR call sites, or use the .optional ' +
-            'variant which returns null in non-DOM environments.'
-        )
-    })
-    const ssrNull = () => null
-    ssrThrow.optional = ssrNull
-    ssrThrow.opt = ssrNull
-    return ssrThrow
+    return /** @type {any} */ (makeUnavailableHelper('throw'))
 }
 
 /**
@@ -719,8 +730,9 @@ function defaultTagHelper(tagName) {
 // unused ones because the package declares sideEffects: false.
 //
 // SSR-safe: in environments where the corresponding global constructor
-// isn't defined (Node without jsdom, etc.), the export is `null` rather
-// than a thrown construction error.
+// isn't defined (Node without jsdom, etc.), the export is a callable shim
+// whose base call throws "requires a DOM" and whose .optional/.opt return
+// null (see defaultTypedHelper).
 // -----------------------------------------------------------------------------
 
 /** @type {TypedHelper<HTMLElement>} */
