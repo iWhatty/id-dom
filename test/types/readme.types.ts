@@ -5,7 +5,9 @@
 // clash; keep it in step with README.md.
 import dom, {
   button, button as buttonEl, byId, canvas, createDom, div, input, input as inputEl, tag,
+  IdDomError,
 } from '../../dist/types/id-dom.js';
+import * as ns from '../../dist/types/id-dom.js';
 
 declare function save(): void;
 declare function save(value?: string): void;
@@ -27,6 +29,41 @@ function optionalAccess() {
   debug?.append('hello');
   const maybeCanvas = canvas.opt('game');
   return maybeCanvas;
+}
+
+function namespaceQuickStart() {
+  const dom = ns;
+  const saveBtn = dom.button('saveBtn');
+  saveBtn.addEventListener('click', save);
+  const debug = dom.div.opt('debugPanel');
+  debug?.append('hello');
+}
+
+function namespaceStyle() {
+  function wireToolbar() {
+    const button = ns.button('saveBtn');
+    const input = ns.input.opt('title');
+    button.addEventListener('click', () => save(input?.value));
+  }
+  return wireToolbar;
+}
+
+function idDomErrorExample() {
+  try {
+    ns.button('saveBtn');
+  } catch (err) {
+    if (err instanceof IdDomError && err.reason === 'missing') { /* ... */ }
+    else throw err;
+  }
+}
+
+function optReasons() {
+  const d = createDom(document, {
+    onError: (err) => {
+      if (err.reason !== 'missing') console.error(err);
+    },
+  });
+  return d.button.opt('debugPanel');
 }
 
 // Choosing an import style.
@@ -128,6 +165,7 @@ function svgInScopedRoot() {
 }
 
 export {
+  namespaceQuickStart, namespaceStyle, idDomErrorExample, optReasons,
   nameClash, defaultObjectStyle, aliasedImports, byIdOneOff,
   quickStart, namedImports, optionalAccess, defaultExport, createDomExample, byIdExamples,
   tagExamples, optionalGetters, errorHandling, shadowDom, elementRoot, svgInScopedRoot,

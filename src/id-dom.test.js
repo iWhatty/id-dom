@@ -1,7 +1,7 @@
 // id-dom.test.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { JSDOM } from 'jsdom'
-import dom, { byId, tag, createDom, main } from './id-dom.js'
+import dom, { byId, tag, createDom, main, button, IdDomError } from './id-dom.js'
 
 describe('id-dom', () => {
   beforeEach(() => {
@@ -304,6 +304,92 @@ describe('id-dom', () => {
     const foreign = main('svgMain')
     expect(foreign.namespaceURI).toBe('http://www.w3.org/2000/svg')
     expect(foreign).not.toBeInstanceOf(HTMLElement)
+  })
+
+  // Every failure is an IdDomError whose `reason` and `id` say what went wrong,
+  // so callers can tell a missing element from a wrong one without parsing
+  // the message.
+  it('throws IdDomError with reason and id for each kind of failure', () => {
+    const cases = [
+      [() => dom.button('nope'), 'missing', 'nope'],
+      [() => dom.button('debugPanel'), 'wrong-type', 'debugPanel'],
+      [() => byId('saveBtn', HTMLInputElement), 'wrong-type', 'saveBtn'],
+      [() => tag('hero', 'main'), 'wrong-tag', 'hero'],
+      [() => dom.main('hero'), 'wrong-tag', 'hero'],
+      [() => byId('', HTMLDivElement), 'invalid-id', ''],
+      [() => byId('x', null), 'invalid-type', 'x'],
+      [() => tag('x', ''), 'invalid-tag', 'x'],
+    ]
+    for (const [call, reason, id] of cases) {
+      let caught
+      try { call() } catch (err) { caught = err }
+      expect(caught, reason).toBeInstanceOf(IdDomError)
+      expect(caught).toBeInstanceOf(Error)
+      expect(caught).toMatchObject({ name: 'IdDomError', reason, id })
+    }
+  })
+
+  it('onError receives the same IdDomError, with err.reason matching ctx.reason', () => {
+    const onError = vi.fn()
+    const d = createDom(document, { mode: 'null', onError })
+    d.button('nope')
+    d.button('debugPanel')
+
+    for (const [err, ctx] of onError.mock.calls) {
+      expect(err).toBeInstanceOf(IdDomError)
+      expect(err.reason).toBe(ctx.reason)
+      expect(err.id).toBe(ctx.id)
+    }
+    expect(onError.mock.calls.map(([err]) => err.reason)).toEqual(['missing', 'wrong-type'])
+  })
+
+  // .opt / .optional: absence is acceptable, and so (silently) is a wrong
+  // type. Both return null; onError still sees which one it was.
+  it('.opt returns null for missing and wrong-type alike; onError tells them apart', () => {
+    const onError = vi.fn()
+    const d = createDom(document, { onError })
+
+    expect(d.button.opt('nope')).toBeNull()
+    expect(d.button.opt('debugPanel')).toBeNull()
+    expect(d.button.opt('saveBtn')).toBeInstanceOf(HTMLButtonElement)
+    expect(onError.mock.calls.map(([, ctx]) => ctx.reason)).toEqual(['missing', 'wrong-type'])
+  })
+
+  // A typed helper names the type it declares, not the name of whatever
+  // constructor the global currently holds (a test fake, a subclass, a
+  // minified class).
+  describe('typed helpers name their declared type', () => {
+    let original
+    beforeEach(() => { original = globalThis.HTMLButtonElement })
+    afterEach(() => { globalThis.HTMLButtonElement = original })
+
+    it('with a fake global constructor', () => {
+      globalThis.HTMLButtonElement = class FakeButton {}
+
+      expect(() => dom.button('nope')).toThrow('id-dom: missing HTMLButtonElement element #nope')
+      expect(() => button('nope')).toThrow('id-dom: missing HTMLButtonElement element #nope')
+      expect(() => dom.button('debugPanel')).toThrow(
+        'id-dom: expected HTMLButtonElement for #debugPanel, got HTMLDivElement')
+    })
+
+    it('with a subclass as the global constructor', () => {
+      globalThis.HTMLButtonElement = class SubButton extends original {}
+
+      expect(() => createDom(document).button('nope')).toThrow(
+        'id-dom: missing HTMLButtonElement element #nope')
+      expect(() => button('debugPanel')).toThrow(/^id-dom: expected HTMLButtonElement for #debugPanel/)
+    })
+  })
+
+  it('byId names the Type it was given, and copes with an anonymous one', () => {
+    class MyWidget extends HTMLElement {}
+    expect(() => byId('nope', MyWidget)).toThrow('id-dom: missing MyWidget element #nope')
+
+    const Anonymous = (() => class {})()
+    expect(Anonymous.name).toBe('')
+    expect(() => byId('nope', Anonymous)).toThrow('id-dom: missing element #nope')
+    expect(() => byId('saveBtn', Anonymous)).toThrow(
+      'id-dom: expected the given Type for #saveBtn, got HTMLButtonElement')
   })
 
 })

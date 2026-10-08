@@ -65,3 +65,20 @@ expectType<Equal<ReturnType<typeof unknownScope.input>, HTMLInputElement | null>
 // Usage the types must allow: strict results dereference without a check.
 button('save').addEventListener('click', () => {});
 byId('settings', HTMLDialogElement).showModal();
+
+// IdDomError: exported class; `reason` is the union, onError receives it.
+import { IdDomError, type IdDomReason } from '../../dist/types/id-dom.js';
+declare const caught: unknown;
+if (caught instanceof IdDomError) {
+  expectType<Equal<typeof caught.reason, IdDomReason>>();
+  expectType<Equal<typeof caught.id, string>>();
+  if (caught.reason === 'missing') { /* narrowable */ }
+  // @ts-expect-error not a reason
+  if (caught.reason === 'absent') { /* never */ }
+}
+createDom(document, {
+  mode: 'null',
+  onError: (err) => { expectType<Equal<typeof err, IdDomError>>(); },
+});
+// A callback typed with plain Error is still accepted.
+createDom(document, { onError: (_err: Error) => {} });

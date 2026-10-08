@@ -28,9 +28,10 @@ const SSR_SHIM = 'requires a DOM' // typed helpers
 /**
  * Gzip budgets (level 9, bytes) for the minified consumer bundle. 0.0.7: about 2,100 for each.
  * They catch a tree-shaking regression, not a few bytes of message: 0.0.9 raised `main` from
- * 1,270 to 1,300 for its new error text (the '#' hint, the tagName in an invalid-tagName error).
+ * 1,270 to 1,300 for its new error text (the '#' hint, the tagName in an invalid-tagName error);
+ * 0.1.0 raised each by about 100 for the exported IdDomError class (reason, id) and its wiring.
  */
-const BUDGET = { button: 1500, byId: 1250, main: 1300, dom: 1900 }
+const BUDGET = { button: 1600, byId: 1350, main: 1375, dom: 2025 }
 
 /**
  * Bundle a consumer of a dist file as an app bundler would.
@@ -94,6 +95,19 @@ describe.each(['index.js', 'index.min.js'])('tree shaking dist/%s', (file) => {
     const plain = await bundle(file, 'import { button } from ID_DOM; button("save").click()', false)
     const aliased = await bundle(file, 'import { button as buttonEl } from ID_DOM; buttonEl("save").click()', false)
     expect(aliased.code).toBe(plain.code)
+  })
+
+  // `import * as dom` reads like the default object (`dom.el`, `dom.button.opt`)
+  // but is a namespace, so a bundler keeps only the members used.
+  it('import * as dom bundles the same code as the named imports it uses', async () => {
+    const named = await bundle(file, 'import { el, button } from ID_DOM; el("a").click(); button.opt("b")', false)
+    const star = await bundle(file, 'import * as dom from ID_DOM; dom.el("a").click(); dom.button.opt("b")', false)
+    expect(star.code).toBe(named.code)
+
+    const { code, gzip } = await bundle(file, 'import * as dom from ID_DOM; dom.el("a").click(); dom.button.opt("b")')
+    expect(without(code, [...CONSTRUCTORS.filter((n) => n !== 'HTMLElement' && n !== 'HTMLButtonElement'),
+      ...TAGS, TAG_CODE])).toEqual([])
+    expect(gzip).toBeLessThanOrEqual(BUDGET.button)
   })
 
   it('the default dom object still bundles every helper', async () => {
