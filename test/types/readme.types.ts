@@ -3,9 +3,12 @@
 // The README's examples, as written, must compile against the built types in
 // strict and loose mode. Each block is wrapped in a function so names do not
 // clash; keep it in step with README.md.
-import dom, { button, byId, canvas, createDom, div, input, tag } from '../../dist/types/id-dom.js';
+import dom, {
+  button, button as buttonEl, byId, canvas, createDom, div, input, input as inputEl, tag,
+} from '../../dist/types/id-dom.js';
 
 declare function save(): void;
+declare function save(value?: string): void;
 
 function quickStart() {
   const saveBtn = dom.button('saveBtn');
@@ -24,6 +27,32 @@ function optionalAccess() {
   debug?.append('hello');
   const maybeCanvas = canvas.opt('game');
   return maybeCanvas;
+}
+
+// Choosing an import style.
+function nameClash() {
+  // @ts-expect-error the local `button` shadows the import (used before its declaration)
+  const button = button('saveBtn'); // error: the local `button` shadows the import
+  return button;
+}
+
+function defaultObjectStyle() {
+  function wireToolbar() {
+    const button = dom.button('saveBtn');
+    const input = dom.input.opt('title');
+    button.addEventListener('click', () => save(input?.value));
+  }
+  return wireToolbar;
+}
+
+function aliasedImports() {
+  const button = buttonEl('saveBtn');
+  const input = inputEl.opt('title');
+  return [button, input];
+}
+
+function byIdOneOff() {
+  return byId('saveBtn', HTMLButtonElement);
 }
 
 function defaultExport() {
@@ -99,6 +128,7 @@ function svgInScopedRoot() {
 }
 
 export {
+  nameClash, defaultObjectStyle, aliasedImports, byIdOneOff,
   quickStart, namedImports, optionalAccess, defaultExport, createDomExample, byIdExamples,
   tagExamples, optionalGetters, errorHandling, shadowDom, elementRoot, svgInScopedRoot,
 };

@@ -32,7 +32,7 @@ pnpm add id-dom
 
 ## Quick start
 
-Two import styles, same root, same behavior. Pick by preference:
+Two import styles, same root, same behavior (see [Choosing an import style](#choosing-an-import-style)):
 
 ```js
 // Default-object style. Every typed helper lives under one namespace.
@@ -62,6 +62,56 @@ debug?.append('hello')
 import { canvas } from 'id-dom'
 const maybeCanvas = canvas.opt('game')          // named style
 ```
+
+Ids are passed without `#`: `button('saveBtn')`, not `button('#saveBtn')`.
+
+### Choosing an import style
+
+The helper names (`button`, `input`, `select`, `form`, `label`, `div`, `el`, ...) are also the natural names for the elements they return. A named import and a local variable of the same name cannot meet in one scope:
+
+```js
+import { button } from 'id-dom'
+
+function wire() {
+  const button = button('saveBtn') // error: the local `button` shadows the import
+}
+```
+
+In a long import list, `button` also reads like data rather than a lookup. Three ways out:
+
+**1. The default object, for app code with many lookups (recommended there).** One import, no name to clash with, and every call reads as a lookup:
+
+```js
+import dom from 'id-dom'
+
+function wireToolbar() {
+  const button = dom.button('saveBtn')
+  const input = dom.input.opt('title')
+  button.addEventListener('click', () => save(input?.value))
+}
+```
+
+**2. Aliased named imports**, to keep the import list explicit. An alias changes nothing in the bundle:
+
+```js
+import { button as buttonEl, input as inputEl } from 'id-dom'
+
+const button = buttonEl('saveBtn')
+const input = inputEl.opt('title')
+```
+
+**3. `byId` with the type**, for a one-off: `byId('saveBtn', HTMLButtonElement)` is the same check as `button('saveBtn')`.
+
+The trade-off is size. The default object carries every helper, `byId`, `tag` and `createDom`; named imports carry only what you import. Consumer bundle of `dist/index.js` with esbuild 0.28.2 (bundle, minify, tree shaking), id-dom 0.0.9, bytes:
+
+| Import | Minified | gzip -9 |
+| --- | ---: | ---: |
+| `{ byId }` | 2,729 | 1,226 |
+| `{ button }`, or `{ button as buttonEl }` | 3,198 | 1,456 |
+| `{ button, div, el, form, input, select, byId }` | 3,447 | 1,557 |
+| `import dom` (every helper) | 4,515 | 1,848 |
+
+So the default object costs about 0.3 KB gzip more than seven named helpers, and 0.4 KB more than one. In an app that is usually worth the clearer code. A library, or a size-critical widget with a few lookups, is better served by named imports.
 
 ---
 
@@ -96,6 +146,8 @@ import { createDom } from 'id-dom'
 const d = createDom(document, { mode: 'null', warn: true })
 const sidebar = d.div('sidebar')
 ```
+
+A `null` root means the whole document, so check a root that can be `null` before scoping to it. `host.shadowRoot` is `null` for a closed shadow root or a host without one, and `createDom(host.shadowRoot)` would then search the document, not the shadow tree. Keep the `ShadowRoot` that `attachShadow()` returns instead.
 
 **Config:**
 
@@ -137,6 +189,7 @@ Behavior:
 - wrong type → throws or returns `null`
 - invalid `id` → throws or returns `null`
 - invalid `Type` → throws or returns `null`
+- an id is used exactly as passed. A leading `#` is not stripped, since an element can have `id="#x"`; when no such element exists, the error names the id as passed and adds a hint (since 0.0.9): `id-dom: missing HTMLButtonElement element id '#saveBtn' (ids are passed without '#')`
 
 ### `tag(id, tagName, config?)`
 
@@ -158,11 +211,11 @@ const maybeMain2 = tag.opt('appMain', 'main')
 
 Behavior:
 
-- valid tag match → returns the element
+- valid tag match (case-insensitive) → returns the element
 - missing element → throws or returns `null`
 - wrong tag → throws or returns `null`
 - invalid `id` → throws or returns `null`
-- invalid `tagName` → throws or returns `null`
+- invalid `tagName` (not a string, empty, or containing whitespace) → throws or returns `null`. No element's tag name contains whitespace, so `' main'` could never match; since 0.0.9 it is reported as `'invalid-tag'` before the lookup, instead of as `'missing'` or `'wrong-tag'`.
 
 ### Built-in getters
 
@@ -191,11 +244,13 @@ dom.canvas.opt('game')
 
 Common tag helpers:
 
-- `main(id)` → validates `<main>`
-- `section(id)` → validates `<section>`
-- `small(id)` → validates `<small>`
+- `main(id)` → validates `<main>`, typed `HTMLElement`
+- `section(id)` → validates `<section>`, typed `HTMLElement`
+- `small(id)` → validates `<small>`, typed `HTMLElement`
 
 Each also supports `.optional` and `.opt`.
+
+These elements have no interface of their own (in HTML they are plain `HTMLElement`), so these helpers check the tag name, case-insensitively, like `tag()`. They do not check the namespace. In an HTML document every `<main>`, `<section>` or `<small>` is an `HTMLElement`, so the type holds. An element of another namespace with the same name also matches and is returned typed `HTMLElement`, which it is not: a `<main>` or `<section>` inside `<svg>` (the HTML parser makes it an SVG element), one made with `document.createElementNS()`, or one in an XML document. Where markup like that is possible, use `tag(id, 'main')` (typed `Element`) or `el(id)` (checks `HTMLElement`, not the tag).
 
 ### Error handling
 
@@ -245,7 +300,7 @@ When a scoped root does not support `getElementById` (an `Element`), id-dom fall
 
 ### Bundle-size note
 
-Since 0.0.8 every helper and the default `dom` object are built in calls marked `/* @__PURE__ */` (kept in `id-dom/min` too), so a bundler drops what you do not import. With esbuild (bundle, minify, gzip -9), `{ byId }` is about 1.2 KB, `{ button }` about 1.4 KB, seven helpers about 1.5 KB, and the default `dom` object (every helper) about 1.8 KB. 0.0.7 shipped about 2.1 KB whatever you imported. The shared lookup machinery (validation, CSS-escape fallback, error policy, root resolution) is most of each figure.
+Since 0.0.8 every helper and the default `dom` object are built in calls marked `/* @__PURE__ */` (kept in `id-dom/min` too), so a bundler drops what you do not import. With esbuild (bundle, minify, gzip -9), 0.0.9: `{ byId }` is about 1.2 KB, `{ button }` about 1.5 KB, seven helpers about 1.6 KB, and the default `dom` object (every helper) about 1.8 KB; see the table under [Choosing an import style](#choosing-an-import-style). 0.0.7 shipped about 2.1 KB whatever you imported. The shared lookup machinery (validation, CSS-escape fallback, error policy, root resolution) is most of each figure.
 
 ### Scoped roots
 
@@ -300,7 +355,7 @@ const { button, createDom } = require('id-dom')
 const dom = require('id-dom').default
 ```
 
-`id-dom/min` is ES modules only.
+`id-dom/min` is ES modules only. `id-dom/package.json` is exported too (since 0.0.9), for tools that read it.
 
 ### Browser support
 

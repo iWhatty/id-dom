@@ -88,6 +88,14 @@ describe.each(['index.js', 'index.min.js'])('tree shaking dist/%s', (file) => {
     expect(gzip).toBeLessThanOrEqual(BUDGET.main)
   })
 
+  // Names kept: minified identifiers are assigned by use counts, which the
+  // consumer's own names can shift without changing the code.
+  it('an aliased named import bundles the same code as the plain one', async () => {
+    const plain = await bundle(file, 'import { button } from ID_DOM; button("save").click()', false)
+    const aliased = await bundle(file, 'import { button as buttonEl } from ID_DOM; buttonEl("save").click()', false)
+    expect(aliased.code).toBe(plain.code)
+  })
+
   it('the default dom object still bundles every helper', async () => {
     const { code, gzip } = await bundle(file, 'import dom from ID_DOM; dom.button("save").click()')
     for (const name of [...CONSTRUCTORS, TAG_CODE, TYPE_CODE, SSR_SHIM]) expect(code).toContain(name)

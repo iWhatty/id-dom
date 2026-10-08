@@ -792,12 +792,26 @@ export const svg      = /* @__PURE__ */ defaultTypedHelper('SVGSVGElement')
 /** @type {TypedHelper<HTMLBodyElement>} */
 export const body     = /* @__PURE__ */ defaultTypedHelper('HTMLBodyElement')
 
-// Named tag-name helpers (no dedicated constructor — return base Element)
-/** @type {TypedHelper<HTMLElement>} */
+// Named tag-name helpers. <main>, <section> and <small> have no interface of
+// their own (they are plain HTMLElement), so these check the tag name like
+// tag(), case-insensitively, and are typed HTMLElement. In an HTML document
+// that type holds. They do not check the namespace: an element of another
+// namespace with the same name (a <main> inside <svg>, createElementNS, an
+// XML document) also matches and is not an HTMLElement.
+/**
+ * `<main>` by id, checked by tag name only (not namespace; see the README).
+ * @type {TypedHelper<HTMLElement>}
+ */
 export const main    = /* @__PURE__ */ defaultTagHelper('main')
-/** @type {TypedHelper<HTMLElement>} */
+/**
+ * `<section>` by id, checked by tag name only (not namespace; see the README).
+ * @type {TypedHelper<HTMLElement>}
+ */
 export const section = /* @__PURE__ */ defaultTagHelper('section')
-/** @type {TypedHelper<HTMLElement>} */
+/**
+ * `<small>` by id, checked by tag name only (not namespace; see the README).
+ * @type {TypedHelper<HTMLElement>}
+ */
 export const small   = /* @__PURE__ */ defaultTagHelper('small')
 
 // -----------------------------------------------------------------------------
