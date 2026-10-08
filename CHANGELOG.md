@@ -2,6 +2,50 @@
 
 > Initial cut seeded from `git log` by the host repo's `tools/seed-changelogs.mjs` script. Version groupings infer release boundaries from tags and commit subjects; rough cuts are expected — review and tighten as part of normal maintenance.
 
+## 0.1.0 — unreleased (prepared 2026-10-08)
+
+An exported error class so apps can tell a missing element from a wrong one, messages that name the expected type a typed getter declares, and README guidance that recommends `import * as dom from 'id-dom'`. Minor bump: a new export and a new `reason`. No call changes its result; see "Observable changes".
+
+Runtime:
+
+- **feat (runtime): `IdDomError`, with `reason` and `id`.**
+  - Every lookup failure is now an `IdDomError` (a subclass of `Error`, exported from `id-dom`, `id-dom/min` and the CommonJS build) with `name: 'IdDomError'`, `reason` (`'missing'`, `'wrong-type'`, `'wrong-tag'`, `'invalid-id'`, `'invalid-type'`, `'invalid-tag'`, `'no-dom'`) and `id` (as passed). The same object is thrown in `'throw'` mode and passed to `onError` in every mode, where `err.reason === ctx.reason`.
+  - Before, callers got a plain `Error` and had to parse the message (or use `onError`'s `ctx`) to tell a missing element from one of the wrong type.
+  - The "requires a DOM" error of a typed getter without a DOM is an `IdDomError` with the new reason `'no-dom'`. It is still thrown directly (not passed to `onError`), as before.
+- **fix (runtime): typed getters name the type they declare.**
+  - Messages used the global constructor's `name`, so with a test fake (`globalThis.HTMLButtonElement = class FakeButton {}`), a subclass or a minified class, `button('save')` reported `missing FakeButton element #save`. Typed getters now always say `HTMLButtonElement`, `HTMLInputElement`, ...: `id-dom: missing HTMLButtonElement element #save`, `id-dom: expected HTMLButtonElement for #save, got HTMLDivElement`.
+  - `byId(id, Type)` still names `Type.name`. A `Type` without a name no longer gives a double space: `id-dom: missing element #x`, `id-dom: expected the given Type for #x, got ...`.
+
+Observable changes (none changes a result or a mode):
+
+- Thrown and reported errors are `IdDomError` instances: `err.name` and `String(err)` say `IdDomError` instead of `Error`. `instanceof Error` and every message are unchanged, except the expected-type name in the fake/subclass/minified-constructor and nameless-`Type` cases above.
+
+Types:
+
+- `IdDomError` and the `IdDomReason` union are exported. `DomConfig['onError']` receives `IdDomError` instead of `Error`; a callback typed `(err: Error) => void` is still accepted.
+
+Docs:
+
+- **docs(README): `import * as dom from 'id-dom'` is the recommended app style.** It reads like the default object (`dom.button(...)`, `dom.button.opt(...)`), avoids the helper-name clash, and bundles like named imports: for `dom.el` plus `dom.button.opt`, 3,388 bytes minified against 4,659 for the default object (1,579 / 1,989 gzip). The quick start shows a hard getter and an `.opt` getter, a table lists every getter with its hard and `.opt` return types, and "Choosing an import style" puts the namespace import first and says what keeps it tree-shakeable.
+- docs(README): `IdDomError`, its reasons and the two message shapes; what `.opt` returns (`null` for a wrong type and invalid input too, not only for a missing element, with `onError` to tell them apart); a `mode` other than `'throw'` behaves as `'null'`.
+
+Size: consumer bundles, esbuild 0.28.2 (`bundle`, `minify`, tree shaking) of `dist/index.js`, bytes raw / gzip -9. The error class and its wiring cost about 100 bytes gzip; the gzip budgets in `test/tree-shake.test.js` went up by that much.
+
+  | Import | 0.0.9 | 0.1.0 |
+  | --- | --- | --- |
+  | `{ byId }` | 2,726 / 1,223 | 2,868 / 1,330 |
+  | `{ button }` | 3,195 / 1,453 | 3,354 / 1,567 |
+  | `{ main }` | 2,920 / 1,269 | 3,024 / 1,352 |
+  | `* as dom` or `{ el, button }`, calling `el` and `button.opt` | 3,229 / 1,467 | 3,388 / 1,579 |
+  | `import dom` (default), the same two calls | 4,526 / 1,855 | 4,659 / 1,989 |
+
+Tests:
+
+- `src/id-dom.test.js`: `IdDomError` with `reason`, `id` and `name` for every reason a lookup can report; `onError` receives the same error with `err.reason === ctx.reason`; `.opt` returns `null` for missing and wrong-type alike while `onError` sees which; typed getters name `HTMLButtonElement` with a fake and with a subclass global constructor (both failed on 0.0.9); `byId` with a named and a nameless `Type`.
+- `test/ssr.test.js`: the "requires a DOM" error is an `IdDomError` with reason `'no-dom'`, for the source and every build.
+- `test/tree-shake.test.js`: `import * as dom` bundles exactly the code of the matching named imports, without other helpers, within the `button` budget.
+- `test/types`: `IdDomError` / `IdDomReason` types, `onError`'s parameter type, and the new README examples.
+
 ## 0.0.9 — 2026-10-08
 
 Clearer errors for two caller mistakes, a `./package.json` export, and README guidance for helper names that clash with local variable names. No API or type signature changes. One observable change: `tag()` reports a `tagName` with whitespace as `'invalid-tag'` (such a call never matched before either).
