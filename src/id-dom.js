@@ -16,6 +16,7 @@ const REASON = /** @type {const} */ ({
     WRONG_TYPE: 'wrong-type',
     WRONG_TAG: 'wrong-tag',
     NO_DOM: 'no-dom',
+    INVALID_MODE: 'invalid-mode',
 })
 
 const SAFE_ID_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/
@@ -30,15 +31,15 @@ const TAG_NAME_RE = /^[^\t\n\f\r ]+$/
  * Why a lookup failed: `ctx.reason` for `onError`, and `error.reason` on the
  * {@link IdDomError} it throws or reports.
  *
- * @typedef {'invalid-id' | 'invalid-type' | 'invalid-tag' | 'missing' | 'wrong-type' | 'wrong-tag' | 'no-dom'} IdDomReason
+ * @typedef {'invalid-id' | 'invalid-type' | 'invalid-tag' | 'missing' | 'wrong-type' | 'wrong-tag' | 'no-dom' | 'invalid-mode'} IdDomReason
  */
 
 /**
  * The error every id-dom lookup throws (in `'throw'` mode) or passes to
  * `onError`. `reason` tells a missing element (`'missing'`) from one of the
  * wrong type (`'wrong-type'`, `'wrong-tag'`), bad input (`'invalid-id'`,
- * `'invalid-type'`, `'invalid-tag'`) or no DOM (`'no-dom'`); `id` is the id
- * as passed. The `message` is for people; match on `reason`.
+ * `'invalid-type'`, `'invalid-tag'`, `'invalid-mode'`) or no DOM
+ * (`'no-dom'`); `id` is the id as passed (`''` for a `createDom()` config). The `message` is for people; match on `reason`.
  */
 export class IdDomError extends Error {
     /**
@@ -71,7 +72,9 @@ export class IdDomError extends Error {
  * and tag helper (`main`, `section`, …). The base call follows the helper's
  * `mode`: in `'throw'` mode (the default, `N = never`) it returns `T`; in a
  * `'null'`-mode scope (`createDom(root, { mode: 'null' })`, `N = null`) it
- * returns `T | null`. `.optional`/`.opt` always return `T | null`.
+ * returns `T | null`. `.optional`/`.opt` return `T | null`: `null` when no
+ * element has the id; a wrong type or invalid input still throws in a
+ * `'throw'` scope (since 0.2.0).
  *
  * @template T
  * @template [N=never]
@@ -163,11 +166,32 @@ function domConstructor(name) {
 // -----------------------------------------------------------------------------
 
 /**
- * @param {DomConfig | undefined} cfg
+ * Throw for a `mode` that is set but is neither `'throw'` nor `'null'`. A
+ * typo must not silently pick a policy. Thrown directly, never passed to
+ * `onError`: with no valid mode there is no policy to follow.
+ *
+ * @param {unknown} mode
+ * @param {string} id
  */
-function normalizeConfig(cfg) {
+function checkMode(mode, id) {
+    if (mode != null && mode !== 'throw' && mode !== 'null') {
+        throw new IdDomError(
+            `id-dom: invalid mode '${String(mode)}' (expected 'throw' or 'null')`, REASON.INVALID_MODE, id)
+    }
+}
+
+/**
+ * `opt` is internal: set by `.optional` / `.opt`, it turns a missing element
+ * (only that) into `null` in a `'throw'` scope.
+ *
+ * @param {DomConfig | undefined} cfg
+ * @param {string} id
+ */
+function normalizeConfig(cfg, id) {
+    checkMode(cfg?.mode, String(id))
     return {
         mode: cfg?.mode ?? 'throw',
+        opt: !!(/** @type {any} */ (cfg)?.opt),
         warn: cfg?.warn ?? false,
         onError: typeof cfg?.onError === 'function' ? cfg.onError : null,
         root: cfg?.root ?? currentDocument(),
@@ -352,7 +376,9 @@ function wrongTypeMsg(id, expected, got) {
 
 /**
  * Build the {@link IdDomError} for a failed lookup (its `reason` and `id` are
- * the context's), report it, then throw it or return `null` by mode.
+ * the context's), report it, then throw it or return `null`. A `'null'` scope
+ * returns `null` for every failure. A `'throw'` scope throws, except that
+ * `.opt` / `.optional` return `null` for a missing element.
  *
  * @template T
  * @param {string} msg
@@ -370,7 +396,7 @@ function handleLookupError(msg, ctx, cfg) {
 
     if (cfg.warn) console.warn(err, ctx)
 
-    if (cfg.mode === 'throw') throw err
+    if (cfg.mode === 'throw' && !(cfg.opt && ctx.reason === REASON.MISSING)) throw err
     return null
 }
 
@@ -407,7 +433,7 @@ function createCtx(id, root, reason, extra) {
  * @returns {T | null}
  */
 function resolveLookup(config, spec) {
-    const cfg = normalizeConfig(config)
+    const cfg = normalizeConfig(config, spec.id)
 
     const inputFailure = spec.validateInput(cfg)
     if (inputFailure) {
@@ -512,7 +538,8 @@ function byId(id, Type, config, typeName) {
 }
 
 /**
- * Optional typed lookup: always returns T | null.
+ * Optional typed lookup: `null` when no element has the id. A wrong type or
+ * invalid input still throws in a `'throw'` scope.
  *
  * @template {Element} T
  * @param {string} id
@@ -521,7 +548,7 @@ function byId(id, Type, config, typeName) {
  * @returns {T | null}
  */
 function byIdOptional(id, Type, config) {
-    return byId(id, Type, { ...config, mode: 'null' })
+    return byId(id, Type, /** @type {any} */ ({ ...config, opt: true }))
 }
 
 // Exported as `byId`. Attaching `.optional` / `.opt` in a pure call, not by
@@ -608,7 +635,8 @@ function tag(id, tagName, config) {
 }
 
 /**
- * Optional tag lookup: always returns Element | null.
+ * Optional tag lookup: `null` when no element has the id. A wrong tag or
+ * invalid input still throws in a `'throw'` scope.
  *
  * @param {string} id
  * @param {string} tagName
@@ -616,7 +644,7 @@ function tag(id, tagName, config) {
  * @returns {Element | null}
  */
 function tagOptional(id, tagName, config) {
-    return tag(id, tagName, { ...config, mode: 'null' })
+    return tag(id, tagName, /** @type {any} */ ({ ...config, opt: true }))
 }
 
 // Exported as `tag`; see `byIdWithOptional`.
@@ -678,14 +706,14 @@ function attachOptional(fn, optionalFn) {
  *
  * @param {string} typeName
  * @param {DomConfig} base
- * @param {DomConfig} baseNull
+ * @param {DomConfig} baseOpt
  */
-function makeTypedHelper(typeName, base, baseNull) {
+function makeTypedHelper(typeName, base, baseOpt) {
     /** @param {DomConfig} cfg */
     const lookup = (cfg) => (/** @type {string} */ id) => {
         const Type = domConstructor(typeName)
         if (Type) return byId(id, Type, cfg, typeName)
-        if ((cfg.mode ?? 'throw') !== 'throw') return null
+        if (/** @type {any} */ (cfg).opt || cfg.mode === 'null') return null
         throw new IdDomError(
             'id-dom: typed-element helper requires a DOM. The ' + typeName +
             ' constructor is undefined in this environment ' +
@@ -696,18 +724,18 @@ function makeTypedHelper(typeName, base, baseNull) {
         )
     }
 
-    return attachOptional(lookup(base), lookup(baseNull))
+    return attachOptional(lookup(base), lookup(baseOpt))
 }
 
 /**
  * @param {string} tagName
  * @param {DomConfig} base
- * @param {DomConfig} baseNull
+ * @param {DomConfig} baseOpt
  */
-function makeTagHelper(tagName, base, baseNull) {
+function makeTagHelper(tagName, base, baseOpt) {
     return attachOptional(
         (/** @type {string} */ id) => tag(id, tagName, base),
-        (/** @type {string} */ id) => tag(id, tagName, baseNull)
+        (/** @type {string} */ id) => tag(id, tagName, baseOpt)
     )
 }
 
@@ -740,29 +768,30 @@ function makeTagHelper(tagName, base, baseNull) {
  * @returns {any}
  */
 export function createDom(root, config) {
+    checkMode(config?.mode, '')
     // Normalized again on each lookup, so a missing root resolves then.
     const base = { ...config, root }
-    const baseNull = { ...base, mode: /** @type {DomMode} */ ('null') }
+    const baseOpt = /** @type {DomConfig} */ ({ ...base, opt: true })
 
     /** @type {any} */
     const api = {}
 
     api.byId = attachOptional(
         (/** @type {string} */ id, /** @type {any} */ Type) => byId(id, Type, base),
-        (/** @type {string} */ id, /** @type {any} */ Type) => byId(id, Type, baseNull)
+        (/** @type {string} */ id, /** @type {any} */ Type) => byId(id, Type, baseOpt)
     )
 
     api.tag = attachOptional(
         (/** @type {string} */ id, /** @type {string} */ name) => tag(id, name, base),
-        (/** @type {string} */ id, /** @type {string} */ name) => tag(id, name, baseNull)
+        (/** @type {string} */ id, /** @type {string} */ name) => tag(id, name, baseOpt)
     )
 
     for (const name in TYPE_HELPERS) {
-        api[name] = makeTypedHelper(TYPE_HELPERS[name], base, baseNull)
+        api[name] = makeTypedHelper(TYPE_HELPERS[name], base, baseOpt)
     }
 
     for (const tagName of TAG_HELPERS) {
-        api[tagName] = makeTagHelper(tagName, base, baseNull)
+        api[tagName] = makeTagHelper(tagName, base, baseOpt)
     }
 
     return api
@@ -776,7 +805,7 @@ export function createDom(root, config) {
 /** @type {DomConfig} */
 const DEFAULT_BASE = { mode: 'throw' }
 /** @type {DomConfig} */
-const DEFAULT_BASE_NULL = { mode: 'null' }
+const DEFAULT_BASE_OPT = /** @type {DomConfig} */ ({ mode: 'throw', opt: true })
 
 /**
  * Build a typed helper bound to the default root.
@@ -786,7 +815,7 @@ const DEFAULT_BASE_NULL = { mode: 'null' }
  * @returns {TypedHelper<any>}
  */
 function defaultTypedHelper(typeName) {
-    return /** @type {any} */ (makeTypedHelper(typeName, DEFAULT_BASE, DEFAULT_BASE_NULL))
+    return /** @type {any} */ (makeTypedHelper(typeName, DEFAULT_BASE, DEFAULT_BASE_OPT))
 }
 
 /**
@@ -795,7 +824,7 @@ function defaultTypedHelper(typeName) {
  * @param {string} tagName
  */
 function defaultTagHelper(tagName) {
-    return makeTagHelper(tagName, DEFAULT_BASE, DEFAULT_BASE_NULL)
+    return makeTagHelper(tagName, DEFAULT_BASE, DEFAULT_BASE_OPT)
 }
 
 // -----------------------------------------------------------------------------

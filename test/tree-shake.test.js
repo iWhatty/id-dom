@@ -29,9 +29,10 @@ const SSR_SHIM = 'requires a DOM' // typed helpers
  * Gzip budgets (level 9, bytes) for the minified consumer bundle. 0.0.7: about 2,100 for each.
  * They catch a tree-shaking regression, not a few bytes of message: 0.0.9 raised `main` from
  * 1,270 to 1,300 for its new error text (the '#' hint, the tagName in an invalid-tagName error);
- * 0.1.0 raised each by about 100 for the exported IdDomError class (reason, id) and its wiring.
+ * 0.2.0 raised each by about 200: about 100 for the exported IdDomError class (reason, id) and
+ * its wiring, about 100 for mode validation (reason 'invalid-mode') and the .opt flag.
  */
-const BUDGET = { button: 1600, byId: 1350, main: 1375, dom: 2025 }
+const BUDGET = { button: 1700, byId: 1450, main: 1475, dom: 2125 }
 
 /**
  * Bundle a consumer of a dist file as an app bundler would.

@@ -57,12 +57,11 @@ function idDomErrorExample() {
   }
 }
 
+declare function report(err: IdDomError): void;
+
 function optReasons() {
-  const d = createDom(document, {
-    onError: (err) => {
-      if (err.reason !== 'missing') console.error(err);
-    },
-  });
+  const d = createDom(document, { onError: (err) => report(err) });
+  d.button.opt('nope');
   return d.button.opt('debugPanel');
 }
 
