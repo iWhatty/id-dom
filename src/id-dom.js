@@ -19,6 +19,7 @@ const REASON = /** @type {const} */ ({
 
 const SAFE_ID_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/
 const NEEDS_START_ESCAPE_RE = /^(?:\d|-\d)/
+const TAG_NAME_RE = /^[^\t\n\f\r ]+$/
 
 /**
  * @typedef {'throw' | 'null'} DomMode
@@ -256,11 +257,15 @@ function isValidId(v) {
 }
 
 /**
+ * A non-empty tag name without whitespace. No element's tag name contains
+ * whitespace (`createElement` rejects it), so a name with any could never
+ * match: it is invalid input, not a wrong tag.
+ *
  * @param {unknown} v
  * @returns {v is string}
  */
 function isValidTagName(v) {
-    return typeof v === 'string' && v.trim().length > 0
+    return typeof v === 'string' && TAG_NAME_RE.test(v)
 }
 
 /**
@@ -282,11 +287,14 @@ function isConstructor(v) {
 // -----------------------------------------------------------------------------
 
 /**
+ * The id for a message: `#saveBtn`. An id passed with a leading `#` is quoted
+ * as passed (`id '#saveBtn'`), so the `#` that made it miss is visible.
+ *
  * @param {string} id
  * @returns {string}
  */
 function fmtId(id) {
-    return id.startsWith('#') ? id : `#${id}`
+    return id.startsWith('#') ? `id '${id}'` : `#${id}`
 }
 
 /**
@@ -295,7 +303,8 @@ function fmtId(id) {
  * @returns {Error}
  */
 function missingElError(id, expected) {
-    return new Error(`id-dom: missing ${expected} element ${fmtId(id)}`)
+    const hint = id.startsWith('#') ? " (ids are passed without '#')" : ''
+    return new Error(`id-dom: missing ${expected} element ${fmtId(id)}${hint}`)
 }
 
 /**
@@ -523,7 +532,7 @@ function tag(id, tagName, config) {
 
             if (!isValidTagName(tagName)) {
                 return {
-                    err: new Error(`id-dom: invalid tagName for ${fmtId(id)}`),
+                    err: new Error(`id-dom: invalid tagName ${typeof tagName === 'string' ? `'${tagName}' ` : ''}for ${fmtId(id)}`),
                     ctx: createCtx(id, cfg.root, REASON.INVALID_TAG, { tagName }),
                 }
             }

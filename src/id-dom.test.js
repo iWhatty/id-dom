@@ -1,7 +1,7 @@
 // id-dom.test.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { JSDOM } from 'jsdom'
-import dom, { byId, tag, createDom } from './id-dom.js'
+import dom, { byId, tag, createDom, main } from './id-dom.js'
 
 describe('id-dom', () => {
   beforeEach(() => {
@@ -233,6 +233,77 @@ describe('id-dom', () => {
     expect(tag('icon', 'svg', { root: container, mode: 'throw' })).toBeInstanceOf(SVGSVGElement)
 
     document.body.removeChild(container)
+  })
+
+  // A leading '#' is a selector habit. The id is still looked up as passed
+  // (an element may really have id="#x"), but the error names it as passed
+  // and says why it is probably missing.
+  it('a missing id with a leading "#" is named as passed, with a hint', () => {
+    expect(() => byId('#saveBtn', HTMLButtonElement)).toThrow(
+      "id-dom: missing HTMLButtonElement element id '#saveBtn' (ids are passed without '#')")
+    expect(() => dom.button('#saveBtn')).toThrow(
+      "id-dom: missing HTMLButtonElement element id '#saveBtn' (ids are passed without '#')")
+    expect(() => tag('#appMain', 'main')).toThrow(
+      "id-dom: missing <main> element id '#appMain' (ids are passed without '#')")
+
+    const container = document.createElement('div')
+    container.innerHTML = '<input id="scoped">'
+    expect(() => createDom(container).input('#scoped')).toThrow(
+      "id-dom: missing HTMLInputElement element id '#scoped' (ids are passed without '#')")
+  })
+
+  it('a missing id with a leading "#" still follows the mode', () => {
+    const onError = vi.fn()
+
+    expect(byId.opt('#saveBtn', HTMLButtonElement)).toBeNull()
+    expect(createDom(document, { mode: 'null', onError }).button('#saveBtn')).toBeNull()
+    expect(onError.mock.calls[0][0].message).toMatch(/ids are passed without '#'/)
+    expect(onError.mock.calls[0][1]).toMatchObject({ id: '#saveBtn', reason: 'missing' })
+  })
+
+  it('an element whose id really starts with "#" is found, and named as passed', () => {
+    document.body.innerHTML = '<div id="#odd"></div>'
+
+    expect(dom.div('#odd').id).toBe('#odd')
+    expect(() => dom.button('#odd')).toThrow(
+      "id-dom: expected HTMLButtonElement for id '#odd', got HTMLDivElement")
+  })
+
+  it('ids without "#" keep their messages', () => {
+    expect(() => dom.button('nope')).toThrow('id-dom: missing HTMLButtonElement element #nope')
+    expect(() => dom.button('debugPanel')).toThrow(
+      'id-dom: expected HTMLButtonElement for #debugPanel, got HTMLDivElement')
+  })
+
+  // No element's tag name contains whitespace (createElement rejects it), so
+  // a tagName with whitespace can never match: it is an invalid tagName,
+  // reported before the lookup, as an empty one is.
+  it.each([[' main'], ['main '], ['\tmain\n'], ['ma in']])(
+    'tag() reports a tagName with whitespace as invalid: %j', (name) => {
+      const onError = vi.fn()
+
+      expect(() => tag('appMain', name)).toThrow(`id-dom: invalid tagName '${name}' for #appMain`)
+      expect(() => tag('nope', name)).toThrow(/invalid tagName/)
+      expect(tag('appMain', name, { mode: 'null', onError })).toBeNull()
+      expect(onError.mock.calls[0][1]).toMatchObject({ id: 'appMain', reason: 'invalid-tag', tagName: name })
+      expect(createDom(document, { mode: 'null' }).tag.opt('appMain', name)).toBeNull()
+    })
+
+  it('tag() still matches a valid tagName in any case', () => {
+    expect(tag('appMain', 'MAIN').id).toBe('appMain')
+    expect(tag('appMain', 'Main').id).toBe('appMain')
+  })
+
+  // Documents the contract the README states: main/section/small check the
+  // tag name only, like tag(), so an element of another namespace with that
+  // name (here SVG) matches although it is not an HTMLElement.
+  it('main() checks the tag name only, not the namespace', () => {
+    document.body.innerHTML = '<svg><main id="svgMain"></main></svg><main id="htmlMain"></main>'
+
+    expect(main('htmlMain')).toBeInstanceOf(HTMLElement)
+    const foreign = main('svgMain')
+    expect(foreign.namespaceURI).toBe('http://www.w3.org/2000/svg')
+    expect(foreign).not.toBeInstanceOf(HTMLElement)
   })
 
 })

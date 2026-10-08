@@ -25,8 +25,12 @@ const TAG_CODE = 'invalid tagName' // tag()
 const TYPE_CODE = 'invalid Type' // byId()
 const SSR_SHIM = 'requires a DOM' // typed helpers
 
-/** Gzip budgets (level 9, bytes) for the minified consumer bundle. 0.0.7: about 2,100 for each. */
-const BUDGET = { button: 1500, byId: 1250, main: 1270, dom: 1900 }
+/**
+ * Gzip budgets (level 9, bytes) for the minified consumer bundle. 0.0.7: about 2,100 for each.
+ * They catch a tree-shaking regression, not a few bytes of message: 0.0.9 raised `main` from
+ * 1,270 to 1,300 for its new error text (the '#' hint, the tagName in an invalid-tagName error).
+ */
+const BUDGET = { button: 1500, byId: 1250, main: 1300, dom: 1900 }
 
 /**
  * Bundle a consumer of a dist file as an app bundler would.
