@@ -32,10 +32,28 @@ pnpm add id-dom
 
 ## Quick start
 
-Two import styles, same root, same behavior (see [Choosing an import style](#choosing-an-import-style)):
+Recommended for app code: a namespace import. It reads like one object (`dom.button(...)`), never clashes with your local variable names, and a bundler keeps only the helpers you call (see [Choosing an import style](#choosing-an-import-style)):
 
 ```js
-// Default-object style. Every typed helper lives under one namespace.
+import * as dom from 'id-dom'
+
+// Hard: the element must exist and be a <button>. Otherwise this throws,
+// so `saveBtn` is never null.
+const saveBtn = dom.button('saveBtn')
+saveBtn.addEventListener('click', save)
+
+// Soft: absence is fine here. Returns the element or null.
+const debug = dom.div.opt('debugPanel')
+debug?.append('hello')
+```
+
+Use the hard getter when the page is broken without the element, and `.opt` (alias `.optional`) only where the element is genuinely optional. That replaces `document.getElementById(...)` plus an ad-hoc null check, or a `!` / `as HTMLButtonElement` cast, with a call that states the intent and checks the type.
+
+Two other import styles give the same root and behavior:
+
+```js
+// Default-object style. Every typed helper lives under one object, and
+// the bundle carries all of them.
 import dom from 'id-dom'
 
 const saveBtn = dom.button('saveBtn')
@@ -53,7 +71,7 @@ const email   = input('email')
 const panel   = div('mainPanel')
 ```
 
-Optional access never throws for missing or wrong-type elements:
+Optional access never throws for missing or wrong-type elements (see [What `.opt` returns](#what-opt-returns)):
 
 ```js
 const debug = dom.div.optional('debugPanel')   // default-object style
@@ -64,6 +82,31 @@ const maybeCanvas = canvas.opt('game')          // named style
 ```
 
 Ids are passed without `#`: `button('saveBtn')`, not `button('#saveBtn')`.
+
+### Getters at a glance
+
+Each is available as a named export, on `import * as dom`, on the default `dom` object and on every `createDom()` scope.
+
+| Getter | Returns (hard call) | `.opt(id)` / `.optional(id)` | Checks |
+| --- | --- | --- | --- |
+| `el(id)` | `HTMLElement` | `HTMLElement \| null` | `instanceof HTMLElement` |
+| `input(id)` | `HTMLInputElement` | `HTMLInputElement \| null` | `instanceof HTMLInputElement` |
+| `button(id)` | `HTMLButtonElement` | `HTMLButtonElement \| null` | `instanceof HTMLButtonElement` |
+| `textarea(id)` | `HTMLTextAreaElement` | `HTMLTextAreaElement \| null` | `instanceof HTMLTextAreaElement` |
+| `select(id)` | `HTMLSelectElement` | `HTMLSelectElement \| null` | `instanceof HTMLSelectElement` |
+| `form(id)` | `HTMLFormElement` | `HTMLFormElement \| null` | `instanceof HTMLFormElement` |
+| `div(id)` | `HTMLDivElement` | `HTMLDivElement \| null` | `instanceof HTMLDivElement` |
+| `span(id)` | `HTMLSpanElement` | `HTMLSpanElement \| null` | `instanceof HTMLSpanElement` |
+| `label(id)` | `HTMLLabelElement` | `HTMLLabelElement \| null` | `instanceof HTMLLabelElement` |
+| `canvas(id)` | `HTMLCanvasElement` | `HTMLCanvasElement \| null` | `instanceof HTMLCanvasElement` |
+| `template(id)` | `HTMLTemplateElement` | `HTMLTemplateElement \| null` | `instanceof HTMLTemplateElement` |
+| `svg(id)` | `SVGSVGElement` | `SVGSVGElement \| null` | `instanceof SVGSVGElement` |
+| `body(id)` | `HTMLBodyElement` | `HTMLBodyElement \| null` | `instanceof HTMLBodyElement` |
+| `main(id)`, `section(id)`, `small(id)` | `HTMLElement` | `HTMLElement \| null` | tag name (see [Built-in getters](#built-in-getters)) |
+| `byId(id, Type)` | `T`, e.g. `byId('dlg', HTMLDialogElement)` | `T \| null` | `instanceof Type` |
+| `tag(id, tagName)` | `Element` | `Element \| null` | tag name, case-insensitive |
+
+In a `createDom(root, { mode: 'null' })` scope the hard call returns `T | null` too.
 
 ### Choosing an import style
 
@@ -77,12 +120,12 @@ function wire() {
 }
 ```
 
-In a long import list, `button` also reads like data rather than a lookup. Three ways out:
+In a long import list, `button` also reads like data rather than a lookup. Four ways out:
 
-**1. The default object, for app code with many lookups (recommended there).** One import, no name to clash with, and every call reads as a lookup:
+**1. A namespace import, for app code (recommended).** One import, no name to clash with, every call reads as a lookup, and the bundle is the same as named imports of just the helpers you call:
 
 ```js
-import dom from 'id-dom'
+import * as dom from 'id-dom'
 
 function wireToolbar() {
   const button = dom.button('saveBtn')
@@ -91,7 +134,11 @@ function wireToolbar() {
 }
 ```
 
-**2. Aliased named imports**, to keep the import list explicit. An alias changes nothing in the bundle:
+`import * as dom` is an ES module namespace, not an object built at runtime, so a bundler (esbuild, Rollup, webpack) resolves `dom.button` statically and drops every helper you do not use. Two cautions keep that true: use the namespace only as `dom.helper(...)` (passing `dom` itself around, `Object.keys(dom)` or `dom[name]` makes a bundler keep everything), and do not confuse it with the default import below, which looks the same at the call site.
+
+**2. The default object** (`import dom from 'id-dom'`). Same call sites, but it is one object holding every helper, so the bundle carries all of them, `byId`, `tag` and `createDom`. Prefer the namespace import unless you need a real object (to pass around or iterate).
+
+**3. Aliased named imports**, to keep the import list explicit. An alias changes nothing in the bundle:
 
 ```js
 import { button as buttonEl, input as inputEl } from 'id-dom'
@@ -100,18 +147,20 @@ const button = buttonEl('saveBtn')
 const input = inputEl.opt('title')
 ```
 
-**3. `byId` with the type**, for a one-off: `byId('saveBtn', HTMLButtonElement)` is the same check as `button('saveBtn')`.
+**4. `byId` with the type**, for a one-off: `byId('saveBtn', HTMLButtonElement)` is the same check as `button('saveBtn')`.
 
-The trade-off is size. The default object carries every helper, `byId`, `tag` and `createDom`; named imports carry only what you import. Consumer bundle of `dist/index.js` with esbuild 0.28.2 (bundle, minify, tree shaking), id-dom 0.0.9, bytes:
+Consumer bundle of `dist/index.js` with esbuild 0.28.2 (bundle, minify, tree shaking), id-dom 0.1.0, bytes. `test/tree-shake.test.js` checks that the namespace import bundles the same code as the matching named imports.
 
 | Import | Minified | gzip -9 |
 | --- | ---: | ---: |
-| `{ byId }` | 2,729 | 1,226 |
-| `{ button }`, or `{ button as buttonEl }` | 3,198 | 1,456 |
-| `{ button, div, el, form, input, select, byId }` | 3,447 | 1,557 |
-| `import dom` (every helper) | 4,515 | 1,848 |
+| `{ byId }` | 2,868 | 1,330 |
+| `{ button }`, or `{ button as buttonEl }` | 3,354 | 1,567 |
+| `* as dom`, calling `dom.el` and `dom.button.opt` | 3,388 | 1,579 |
+| `{ el, button }`, the same two calls | 3,388 | 1,579 |
+| `{ button, div, el, form, input, select, byId }` | 3,581 | 1,645 |
+| `import dom` (default object), the same two calls | 4,659 | 1,989 |
 
-So the default object costs about 0.3 KB gzip more than seven named helpers, and 0.4 KB more than one. In an app that is usually worth the clearer code. A library, or a size-critical widget with a few lookups, is better served by named imports.
+So for the same code the default object costs about 0.4 KB gzip more than the namespace import. Whichever style you use, the namespace and named imports cost only for the helpers you call.
 
 ---
 
@@ -157,12 +206,14 @@ type DomMode = 'throw' | 'null'
 {
   mode?: DomMode
   warn?: boolean
-  onError?: (err: Error, ctx: any) => void
+  onError?: (err: IdDomError, ctx: any) => void
   root?: any // byId() and tag() only; createDom() takes the root as its first argument
 }
 ```
 
-`ctx` is `{ id, root, reason, ... }`, where `reason` is one of `'invalid-id'`, `'invalid-type'`, `'invalid-tag'`, `'missing'`, `'wrong-type'`, or `'wrong-tag'`.
+`ctx` is `{ id, root, reason, ... }`, where `reason` is one of `'invalid-id'`, `'invalid-type'`, `'invalid-tag'`, `'missing'`, `'wrong-type'`, or `'wrong-tag'`, the same as `err.reason` (see [Error handling](#error-handling)).
+
+`mode` defaults to `'throw'`. Any other value set explicitly behaves as `'null'`, so a typo such as `mode: 'nul'` makes lookups return `null`. TypeScript catches the typo; plain JS does not.
 
 ### `byId(id, Type, config?)`
 
@@ -257,9 +308,48 @@ These elements have no interface of their own (in HTML they are plain `HTMLEleme
 **Throwing mode:**
 
 ```js
-import dom from 'id-dom'
+import * as dom from 'id-dom'
 
-dom.button('missing') // throws
+dom.button('missing') // throws IdDomError: id-dom: missing HTMLButtonElement element #missing
+```
+
+Every failure is an `IdDomError` (exported, since 0.1.0, a subclass of `Error`) with:
+
+- `reason`: `'missing'`, `'wrong-type'` (typed getters, `byId`), `'wrong-tag'` (`tag`, `main`, `section`, `small`), `'invalid-id'`, `'invalid-type'`, `'invalid-tag'`, or `'no-dom'` (a typed getter called without a DOM in a `'throw'` scope; thrown directly, not passed to `onError`; see [Server-side rendering](#server-side-rendering))
+- `id`: the id as passed
+- `name`: `'IdDomError'`
+
+Match on `reason`, not on the message text:
+
+```js
+import { IdDomError } from 'id-dom'
+
+try {
+  dom.button('saveBtn')
+} catch (err) {
+  if (err instanceof IdDomError && err.reason === 'missing') { /* ... */ }
+  else throw err
+}
+```
+
+Messages have two main shapes, the same for every getter, always with the id:
+
+- `id-dom: missing HTMLButtonElement element #saveBtn` (`tag()` and the tag helpers say `<main>`)
+- `id-dom: expected HTMLButtonElement for #saveBtn, got HTMLDivElement`
+
+A typed getter names the type it declares (`HTMLButtonElement` for `button`), even if the global constructor is a subclass, a test fake or a minified class (since 0.1.0; before, the constructor's own `name` was printed). `byId(id, Type)` names `Type.name`, so a class whose name your minifier mangles shows the mangled name; a `Type` without a name gives `missing element #x` and `expected the given Type for #x`. The "got" part is the found element's constructor name.
+
+#### What `.opt` returns
+
+`.opt` / `.optional` (and every call in a `'null'` scope) return `null` for **every** failure, not only a missing element: a wrong type, a wrong tag and invalid input return `null` too, without throwing or logging. So `dom.button.opt('debugPanel')` is `null` when `#debugPanel` is a `<div>`, exactly as when it does not exist. To tell the cases apart, pass `onError` (it is called in every mode, `.opt` included, with `err.reason` and `ctx.reason` set) or `warn: true`:
+
+```js
+const d = createDom(document, {
+  onError: (err) => {
+    if (err.reason !== 'missing') console.error(err) // a wrong type is a bug even when optional
+  },
+})
+d.button.opt('debugPanel') // null, and onError sees reason 'wrong-type'
 ```
 
 **Null-returning mode:**
@@ -300,7 +390,7 @@ When a scoped root does not support `getElementById` (an `Element`), id-dom fall
 
 ### Bundle-size note
 
-Since 0.0.8 every helper and the default `dom` object are built in calls marked `/* @__PURE__ */` (kept in `id-dom/min` too), so a bundler drops what you do not import. With esbuild (bundle, minify, gzip -9), 0.0.9: `{ byId }` is about 1.2 KB, `{ button }` about 1.5 KB, seven helpers about 1.6 KB, and the default `dom` object (every helper) about 1.8 KB; see the table under [Choosing an import style](#choosing-an-import-style). 0.0.7 shipped about 2.1 KB whatever you imported. The shared lookup machinery (validation, CSS-escape fallback, error policy, root resolution) is most of each figure.
+Since 0.0.8 every helper and the default `dom` object are built in calls marked `/* @__PURE__ */` (kept in `id-dom/min` too), so a bundler drops what you do not import. With esbuild (bundle, minify, gzip -9), 0.1.0: `{ byId }` is about 1.3 KB, `{ button }` about 1.6 KB, seven helpers about 1.6 KB, and the default `dom` object (every helper) about 2.0 KB; `import * as dom` costs the same as named imports of the helpers it calls; see the table under [Choosing an import style](#choosing-an-import-style). 0.0.7 shipped about 2.1 KB whatever you imported. The shared lookup machinery (validation, CSS-escape fallback, error policy, root resolution) is most of each figure.
 
 ### Scoped roots
 
@@ -342,7 +432,7 @@ const icon = d.svg('logoMark')
 
 ### Server-side rendering
 
-Importing id-dom without a DOM (Node without jsdom, edge runtimes) is safe. Every helper stays callable: a typed getter (`input`, `button`, ...) throws a clear "requires a DOM" error in a `'throw'` scope and returns `null` in a `'null'` scope, and `.optional` / `.opt` return `null`. This holds for the named exports, the default `dom` object, and `createDom()` scopes (the last two since 0.0.8).
+Importing id-dom without a DOM (Node without jsdom, edge runtimes) is safe. Every helper stays callable: a typed getter (`input`, `button`, ...) throws a clear "requires a DOM" error (an `IdDomError` with reason `'no-dom'`, since 0.1.0) in a `'throw'` scope and returns `null` in a `'null'` scope, and `.optional` / `.opt` return `null`. This holds for the named exports, the default `dom` object, and `createDom()` scopes (the last two since 0.0.8).
 
 The DOM can be installed after import (a test setup, a late jsdom, hydration): since 0.0.8 id-dom reads the global `document` and the element constructors (`globalThis.HTMLButtonElement`, ...) on each lookup, so the same helpers start finding elements once they exist, and behave as above again if the DOM is removed. A root passed to `createDom(root)` or `{ root }` is always used as given.
 
