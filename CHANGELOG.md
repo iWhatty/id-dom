@@ -2,6 +2,49 @@
 
 > Initial cut seeded from `git log` by the host repo's `tools/seed-changelogs.mjs` script. Version groupings infer release boundaries from tags and commit subjects; rough cuts are expected — review and tighten as part of normal maintenance.
 
+## 0.0.9 — 2026-10-08
+
+Clearer errors for two caller mistakes, a `./package.json` export, and README guidance for helper names that clash with local variable names. No API or type signature changes. One observable change: `tag()` reports a `tagName` with whitespace as `'invalid-tag'` (such a call never matched before either).
+
+Runtime:
+
+- **fix (runtime): an id with a leading `#` is named as passed, with a hint.**
+  - `byId('#saveBtn', HTMLButtonElement)` reported `id-dom: missing HTMLButtonElement element #saveBtn`, which reads like the selector of the right id and hides the stray `#`.
+  - The id is still looked up exactly as passed (an element can have `id="#x"`), so results, modes, `onError` and `ctx` are unchanged. Messages now quote such an id as passed (`id '#saveBtn'`), and a missing-element error adds a hint: `id-dom: missing HTMLButtonElement element id '#saveBtn' (ids are passed without '#')`.
+  - Ids without a leading `#` keep their messages (`id-dom: missing HTMLButtonElement element #saveBtn`).
+- **fix (runtime): `tag()` validates and compares the same `tagName`.**
+  - Validation trimmed the name but the comparison did not, so `tag(id, ' main')` passed validation and could never match: it reported `'missing'`, or `'wrong-tag'` with `expected < main> ..., got <main>`.
+  - A `tagName` must now be a non-empty string without whitespace. No element's tag name contains any (`createElement` rejects it). Anything else is reason `'invalid-tag'`, reported before the lookup and following the mode as before; the message quotes a string name: `id-dom: invalid tagName ' main' for #app`.
+  - Rejecting rather than trimming: ids are used exactly as passed, so tag names are too, and no call that matched before changes its result. A call that always failed still fails, now with the reason that names the mistake; trimming would have silently repaired it. Matching stays case-insensitive.
+- Consumer bundle sizes, esbuild 0.28.2 (`bundle`, `minify`, tree shaking) of `dist/index.js`, bytes raw / gzip -9, each consumer calling every helper it imports. `dist/index.min.js` is within 1 byte gzip. The new message text costs about 40 bytes gzip; the `main` budget in `test/tree-shake.test.js` went from 1,270 to 1,300.
+
+  | Import | 0.0.8 | 0.0.9 |
+  | --- | --- | --- |
+  | `{ button }` (or `{ button as buttonEl }`) | 3,125 / 1,418 | 3,198 / 1,456 |
+  | `{ byId }` | 2,656 / 1,183 | 2,729 / 1,226 |
+  | `{ button, div, el, form, input, select, byId }` | 3,374 / 1,521 | 3,447 / 1,557 |
+  | `import dom` (default) | 4,396 / 1,776 | 4,515 / 1,848 |
+
+Types:
+
+- **docs (types): `main`, `section` and `small` say what they check.** They stay typed `TypedHelper<HTMLElement>`. Their JSDoc (shown in editors) now says they check the tag name only, not the namespace. In an HTML document the type holds; an element of another namespace with the same name (a `<main>` inside `<svg>`, `createElementNS()`, an XML document) also matches and is not an `HTMLElement`. Narrowing them to `Element` would break consumers that use `HTMLElement` members, so the types are unchanged.
+
+Packaging:
+
+- **feat (packaging): `exports` lists `./package.json`.** `require('id-dom/package.json')` and `import('id-dom/package.json', { with: { type: 'json' } })` failed with `ERR_PACKAGE_PATH_NOT_EXPORTED`, and some tools read it. Additive: no other entry changed.
+
+Docs:
+
+- **docs(README): Choosing an import style.** The helper names (`button`, `input`, `select`, `form`, `div`, `el`, ...) are also natural local variable names, and `const button = button('saveBtn')` does not work. The README now recommends the default object (`dom.button('saveBtn')`) for app code with many lookups, shows aliased named imports (`import { button as buttonEl } from 'id-dom'`) and `byId(id, Type)` for a one-off, and gives the size trade-off (table above; about 0.3 KB gzip for the default object over seven named helpers).
+- docs(README): ids are passed without `#`; what makes a `tagName` invalid; what `main` / `section` / `small` check (see Types); a `null` root means the whole document, so `createDom(host.shadowRoot)` searches the document when the shadow root is closed or missing; the `./package.json` export. The bundle-size note has the 0.0.9 figures.
+
+Tests:
+
+- `src/id-dom.test.js`: the `#` hint for every lookup path (named, default object, `tag()`, an `Element` root), the mode with it, an element whose id really starts with `#`, unchanged messages without `#`; whitespace in a `tagName` (leading, trailing, tab and newline, inside) as `'invalid-tag'` in both modes and on a scope; case-insensitive matching; `main()` matching an SVG-namespace `<main>` (the documented contract). The `#` and whitespace tests failed on 0.0.8; the unchanged-message, case-insensitive and `main()` tests record behaviour that stays.
+- `test/package.test.js`: `id-dom/package.json` resolves through `exports` by package name, for `require` and for an ES module JSON import in a fresh Node process, and every `exports` target is a file the package ships. The two resolution tests failed on 0.0.8.
+- `test/tree-shake.test.js`: an aliased named import bundles the same code as the plain one.
+- `test/types/readme.types.ts`: the new README examples compile in strict and loose mode, and the name-clash example is a compile error (`@ts-expect-error`).
+
 ## 0.0.8 — 2026-10-07
 
 Runtime fixes (among them: a DOM installed after import now works), a build fix (unused helpers tree-shake away), a packaging fix for CommonJS types, and dev-tooling updates. No API or type signature changes.
