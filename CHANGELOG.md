@@ -2,6 +2,50 @@
 
 > Initial cut seeded from `git log` by the host repo's `tools/seed-changelogs.mjs` script. Version groupings infer release boundaries from tags and commit subjects; rough cuts are expected — review and tighten as part of normal maintenance.
 
+## 0.2.0 — unreleased (prepared 2026-10-08)
+
+**Breaking.** `.opt` / `.optional` now throw for an element of the wrong type or tag (and for invalid input) instead of returning `null`, and an invalid `mode` throws instead of behaving as `'null'`. Also: an exported `IdDomError` with `reason` and `id`, messages that name the type a typed getter declares, and README guidance that recommends `import * as dom from 'id-dom'`. (0.1.0 was prepared but never published; its changes are folded in here.)
+
+Breaking changes:
+
+- **`.opt` / `.optional` relax only absence.**
+  - They return `null` when no element has the id. An element that exists but has the wrong type (`'wrong-type'`) or tag (`'wrong-tag'`), and invalid input (`'invalid-id'`, `'invalid-type'`, `'invalid-tag'`), now throw an `IdDomError` in a `'throw'` scope (the default), as the hard getter does. Before, all of these returned `null` silently, so `dom.button.opt('panel')` hid a `<div id="panel">` bug.
+  - Every one of these failures is passed to `onError` and, with `warn: true`, logged, before `.opt` throws or returns `null`, as for the hard getter (unchanged: a `.opt` miss is still reported with reason `'missing'`).
+  - Unchanged: in a `createDom(root, { mode: 'null' })` scope every call, `.opt` included, returns `null` for every failure. Without a DOM, `.opt` returns `null` (reason `'no-dom'` is only thrown by hard calls in a `'throw'` scope).
+  - Migration: where a wrong element really is acceptable, use a `'null'` scope, or catch `IdDomError`.
+- **`mode` is validated.** Accepted: `'throw'`, `'null'`, and `undefined` / `null` (meaning the default `'throw'`). Anything else throws `IdDomError` with the new reason `'invalid-mode'` (`id-dom: invalid mode 'nul' (expected 'throw' or 'null')`): `createDom()` when it is called (`err.id` is `''`), `byId()` / `tag()` and their `.opt` when they are called. It is thrown directly, not passed to `onError`. Before, any value other than `'throw'` silently behaved as `'null'`.
+
+Runtime:
+
+- **feat: `IdDomError`, with `reason` and `id`.** Every lookup failure is an `IdDomError` (a subclass of `Error`, exported from `id-dom`, `id-dom/min` and the CommonJS build) with `name: 'IdDomError'`, `reason` (`'missing'`, `'wrong-type'`, `'wrong-tag'`, `'invalid-id'`, `'invalid-type'`, `'invalid-tag'`, `'invalid-mode'`, `'no-dom'`) and `id` (as passed). The same object is thrown and passed to `onError`, where `err.reason === ctx.reason`. The "requires a DOM" error is an `IdDomError` with reason `'no-dom'`, still thrown directly. `err.name` and `String(err)` say `IdDomError` instead of `Error`.
+- **fix: typed getters name the type they declare.** Messages used the global constructor's `name`, so with a test fake (`globalThis.HTMLButtonElement = class FakeButton {}`), a subclass or a minified class, `button('save')` reported `missing FakeButton element #save`. Typed getters now always say `HTMLButtonElement`, ...: `id-dom: missing HTMLButtonElement element #save`, `id-dom: expected HTMLButtonElement for #save, got HTMLDivElement`. `byId(id, Type)` still names `Type.name`; a nameless `Type` gives `missing element #x` / `expected the given Type for #x` instead of a double space.
+
+Types:
+
+- `IdDomError` and the `IdDomReason` union are exported. `DomConfig['onError']` receives `IdDomError`; a callback typed `(err: Error) => void` is still accepted. Return types are unchanged (`.opt` is still `T | null`).
+
+Docs:
+
+- **docs(README): `import * as dom from 'id-dom'` is the recommended app style.** It reads like the default object, avoids the helper-name clash, and bundles like named imports (for `dom.el` plus `dom.button.opt`: 3,642 bytes minified against 4,914 for the default object; 1,685 / 2,097 gzip). The quick start shows a hard and an `.opt` getter; a table lists every getter with its hard and `.opt` return types.
+- docs(README): `IdDomError`, its reasons and message shapes; a table of what `.opt`, the hard call and a `'null'` scope return or throw for each reason; the accepted `mode` values.
+
+Size: consumer bundles, esbuild 0.28.2 (`bundle`, `minify`, tree shaking) of `dist/index.js`, bytes raw / gzip -9. About +100 gzip for `IdDomError` and +100 for mode validation and the `.opt` flag; the gzip budgets in `test/tree-shake.test.js` went up by about 200 each (button 1,500 → 1,700, byId 1,250 → 1,450, main 1,300 → 1,475, dom 1,900 → 2,125).
+
+  | Import | 0.0.9 | 0.2.0 |
+  | --- | --- | --- |
+  | `{ byId }` | 2,726 / 1,223 | 3,114 / 1,429 |
+  | `{ button }` | 3,195 / 1,453 | 3,608 / 1,671 |
+  | `{ main }` | 2,920 / 1,269 | 3,283 / 1,457 |
+  | `* as dom` or `{ el, button }`, calling `el` and `button.opt` | 3,229 / 1,467 | 3,642 / 1,685 |
+  | `import dom` (default), the same two calls | 4,526 / 1,855 | 4,914 / 2,097 |
+
+Tests:
+
+- `src/id-dom.test.js`: `IdDomError` `reason` / `id` / `name` for every lookup reason; `onError` gets the same error; `.opt` missing → `null`, wrong type and wrong tag → throw, all reported to `onError` and `warn`; `.opt` in a `'null'` scope → `null`; invalid input through `.opt` throws; invalid modes (`'nul'`, `'THROW'`, `''`, `0`, `false`, `true`) throw `'invalid-mode'` from `createDom`, `byId`, `byId.opt`, `tag`, `tag.optional`, without calling `onError`; valid modes unchanged; typed getters name `HTMLButtonElement` with a fake and a subclass constructor; `byId` with a named and a nameless `Type`.
+- `test/dist.test.js`, `test/late-dom.test.js`, `test/ssr.test.js`: the new `.opt` semantics, invalid mode, and `'no-dom'` for every build.
+- `test/tree-shake.test.js`: `import * as dom` bundles exactly the code of the matching named imports.
+- `test/types`: `IdDomError` / `IdDomReason`, `onError`'s parameter type, the new README examples.
+
 ## 0.0.9 — 2026-10-08
 
 Clearer errors for two caller mistakes, a `./package.json` export, and README guidance for helper names that clash with local variable names. No API or type signature changes. One observable change: `tag()` reports a `tagName` with whitespace as `'invalid-tag'` (such a call never matched before either).

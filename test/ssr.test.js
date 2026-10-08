@@ -58,6 +58,14 @@ describe.each(builds)('without a DOM: %s', (_name, load) => {
     }
   })
 
+  it('the "requires a DOM" error is an IdDomError with reason no-dom', async () => {
+    const m = await load()
+    let caught
+    try { m.button('save') } catch (err) { caught = err }
+    expect(caught).toBeInstanceOf(m.IdDomError)
+    expect(caught).toMatchObject({ name: 'IdDomError', reason: 'no-dom', id: 'save' })
+  })
+
   it('typed helpers return null in null scopes and from .optional / .opt', async () => {
     const m = await load()
     const nullScope = m.createDom(emptyRoot, { mode: 'null' })

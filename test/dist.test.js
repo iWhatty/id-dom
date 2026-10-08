@@ -39,15 +39,23 @@ describe.each(builds)('dist/%s', (_file, load) => {
     expect(() => m.default.button('panel')).toThrow(/expected HTMLButtonElement/)
   })
 
-  it('null-mode scopes and .optional / .opt return null', async () => {
+  it('null-mode scopes return null; .optional / .opt return null only when missing', async () => {
     const m = await load()
     const scope = m.createDom(document, { mode: 'null' })
     expect(scope.button('nope')).toBeNull()
+    expect(scope.button('panel')).toBeNull()
     expect(scope.div('panel')).toBeInstanceOf(HTMLDivElement)
     expect(m.byId.opt).toBe(m.byId.optional)
-    expect(m.byId.opt('panel', HTMLButtonElement)).toBeNull()
-    expect(m.tag.optional('app', 'section')).toBeNull()
+    expect(m.byId.opt('nope', HTMLButtonElement)).toBeNull()
+    expect(() => m.byId.opt('panel', HTMLButtonElement)).toThrow(m.IdDomError)
+    expect(() => m.tag.optional('app', 'section')).toThrow(m.IdDomError)
     expect(m.div.opt('nope')).toBeNull()
+  })
+
+  it('rejects an invalid mode with IdDomError reason invalid-mode', async () => {
+    const m = await load()
+    expect(() => m.createDom(document, { mode: 'nul' })).toThrow(m.IdDomError)
+    expect(() => m.byId('panel', HTMLDivElement, { mode: 'nul' })).toThrow(/invalid mode 'nul'/)
   })
 
   it('scopes to a ShadowRoot and an Element root', async () => {

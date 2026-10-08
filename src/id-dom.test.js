@@ -1,7 +1,7 @@
 // id-dom.test.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { JSDOM } from 'jsdom'
-import dom, { byId, tag, createDom, main } from './id-dom.js'
+import dom, { byId, tag, createDom, main, button, IdDomError } from './id-dom.js'
 
 describe('id-dom', () => {
   beforeEach(() => {
@@ -35,9 +35,13 @@ describe('id-dom', () => {
     expect(() => dom.button('debugPanel')).toThrow(/expected/i)
   })
 
-  it('optional helpers never throw and return null on missing/wrong type', () => {
+  // Since 0.2.0 .opt / .optional relax only absence: a wrong type still throws.
+  it('optional helpers return null when missing and throw on a wrong type', () => {
     expect(dom.button.optional('nope')).toBeNull()
-    expect(dom.button.optional('debugPanel')).toBeNull()
+    expect(dom.button.opt('nope')).toBeNull()
+    expect(() => dom.button.optional('debugPanel')).toThrow(
+      'id-dom: expected HTMLButtonElement for #debugPanel, got HTMLDivElement')
+    expect(() => button.opt('debugPanel')).toThrow(IdDomError)
 
     // correct type should still return the element
     expect(dom.button.optional('saveBtn')).toBeInstanceOf(HTMLButtonElement)
@@ -50,9 +54,9 @@ describe('id-dom', () => {
     expect(() => byId('saveBtn', HTMLInputElement)).toThrow()
   })
 
-  it('byId.optional(Type) returns null instead of throwing', () => {
+  it('byId.optional(Type) returns null when missing and throws on a wrong type', () => {
     expect(byId.optional('nope', HTMLDivElement)).toBeNull()
-    expect(byId.optional('saveBtn', HTMLInputElement)).toBeNull()
+    expect(() => byId.optional('saveBtn', HTMLInputElement)).toThrow(/expected HTMLInputElement/)
     expect(byId.optional('debugPanel', HTMLDivElement)).toBeInstanceOf(HTMLDivElement)
   })
 
@@ -61,9 +65,10 @@ describe('id-dom', () => {
     expect(() => tag('hero', 'main')).toThrow(/expected/i)
   })
 
-  it('tag.optional(id, name) returns null instead of throwing', () => {
+  it('tag.optional(id, name) returns null when missing and throws on a wrong tag', () => {
     expect(tag.optional('nope', 'main')).toBeNull()
-    expect(tag.optional('hero', 'main')).toBeNull()
+    expect(() => tag.optional('hero', 'main')).toThrow('id-dom: expected <main> for #hero, got <section>')
+    expect(() => dom.main.opt('hero')).toThrow(IdDomError)
     expect(tag.optional('hero', 'section')).toBeInstanceOf(HTMLElement)
   })
 
@@ -167,22 +172,26 @@ describe('id-dom', () => {
   })
 
   it('byId returns null/throws predictably for invalid id', () => {
-    expect(byId.optional('', HTMLDivElement)).toBeNull()
+    expect(() => byId.optional('', HTMLDivElement)).toThrow(/invalid id/i)
+    expect(byId('', HTMLDivElement, { mode: 'null' })).toBeNull()
     expect(() => byId('', HTMLDivElement)).toThrow(/invalid id/i)
   })
 
   it('byId returns null/throws predictably for invalid Type', () => {
-    expect(byId.optional('x', null)).toBeNull()
+    expect(() => byId.optional('x', null)).toThrow(/invalid type/i)
+    expect(byId('x', null, { mode: 'null' })).toBeNull()
     expect(() => byId('x', null)).toThrow(/invalid type/i)
   })
 
   it('tag returns null/throws predictably for invalid id', () => {
-    expect(tag.optional('', 'main')).toBeNull()
+    expect(() => tag.optional('', 'main')).toThrow(/invalid id/i)
+    expect(tag('', 'main', { mode: 'null' })).toBeNull()
     expect(() => tag('', 'main')).toThrow(/invalid id/i)
   })
 
   it('tag returns null/throws predictably for invalid tagName', () => {
-    expect(tag.optional('appMain', '')).toBeNull()
+    expect(() => tag.optional('appMain', '')).toThrow(/invalid tag/i)
+    expect(tag('appMain', '', { mode: 'null' })).toBeNull()
     expect(() => tag('appMain', '')).toThrow(/invalid tag/i)
   })
 
@@ -191,7 +200,7 @@ describe('id-dom', () => {
     const arrow = () => {}
     const onError = vi.fn()
 
-    expect(byId.optional('saveBtn', arrow)).toBeNull()
+    expect(() => byId.optional('saveBtn', arrow)).toThrow(/invalid type/i)
     expect(() => byId('saveBtn', arrow)).toThrow(/invalid type/i)
     expect(byId('saveBtn', arrow, { mode: 'null', onError })).toBeNull()
     expect(onError.mock.calls[0][1]).toMatchObject({ id: 'saveBtn', reason: 'invalid-type' })
@@ -304,6 +313,142 @@ describe('id-dom', () => {
     const foreign = main('svgMain')
     expect(foreign.namespaceURI).toBe('http://www.w3.org/2000/svg')
     expect(foreign).not.toBeInstanceOf(HTMLElement)
+  })
+
+  // Every failure is an IdDomError whose `reason` and `id` say what went wrong,
+  // so callers can tell a missing element from a wrong one without parsing
+  // the message.
+  it('throws IdDomError with reason and id for each kind of failure', () => {
+    const cases = [
+      [() => dom.button('nope'), 'missing', 'nope'],
+      [() => dom.button('debugPanel'), 'wrong-type', 'debugPanel'],
+      [() => byId('saveBtn', HTMLInputElement), 'wrong-type', 'saveBtn'],
+      [() => tag('hero', 'main'), 'wrong-tag', 'hero'],
+      [() => dom.main('hero'), 'wrong-tag', 'hero'],
+      [() => byId('', HTMLDivElement), 'invalid-id', ''],
+      [() => byId('x', null), 'invalid-type', 'x'],
+      [() => tag('x', ''), 'invalid-tag', 'x'],
+    ]
+    for (const [call, reason, id] of cases) {
+      let caught
+      try { call() } catch (err) { caught = err }
+      expect(caught, reason).toBeInstanceOf(IdDomError)
+      expect(caught).toBeInstanceOf(Error)
+      expect(caught).toMatchObject({ name: 'IdDomError', reason, id })
+    }
+  })
+
+  it('onError receives the same IdDomError, with err.reason matching ctx.reason', () => {
+    const onError = vi.fn()
+    const d = createDom(document, { mode: 'null', onError })
+    d.button('nope')
+    d.button('debugPanel')
+
+    for (const [err, ctx] of onError.mock.calls) {
+      expect(err).toBeInstanceOf(IdDomError)
+      expect(err.reason).toBe(ctx.reason)
+      expect(err.id).toBe(ctx.id)
+    }
+    expect(onError.mock.calls.map(([err]) => err.reason)).toEqual(['missing', 'wrong-type'])
+  })
+
+  // .opt / .optional: absence is acceptable, a wrong element is not. Both
+  // are reported to onError / warn like the hard getter's failures.
+  it('.opt: missing returns null, wrong type or tag throws, both reported', () => {
+    const onError = vi.fn()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const d = createDom(document, { onError, warn: true })
+
+    expect(d.button.opt('nope')).toBeNull()
+    expect(() => d.button.opt('debugPanel')).toThrow(IdDomError)
+    expect(() => d.main.opt('hero')).toThrow(IdDomError)
+    expect(() => d.tag.opt('hero', 'main')).toThrow(IdDomError)
+    expect(() => d.byId.opt('saveBtn', HTMLInputElement)).toThrow(IdDomError)
+    expect(d.button.opt('saveBtn')).toBeInstanceOf(HTMLButtonElement)
+    expect(onError.mock.calls.map(([err]) => err.reason))
+      .toEqual(['missing', 'wrong-type', 'wrong-tag', 'wrong-tag', 'wrong-type'])
+    expect(warn).toHaveBeenCalledTimes(5)
+    warn.mockRestore()
+  })
+
+  it('.opt in a "null" scope still returns null for every failure', () => {
+    const d = createDom(document, { mode: 'null' })
+    expect(d.button.opt('nope')).toBeNull()
+    expect(d.button.opt('debugPanel')).toBeNull()
+    expect(d.main.opt('hero')).toBeNull()
+    expect(d.byId.opt('', HTMLDivElement)).toBeNull()
+  })
+
+  // mode must be 'throw', 'null' or unset; a typo throws instead of silently
+  // picking the 'null' policy.
+  it.each([['nul'], ['THROW'], [''], [0], [false], [true]])('an invalid mode throws: %j', (mode) => {
+    const check = (fn) => {
+      let caught
+      try { fn() } catch (err) { caught = err }
+      expect(caught).toBeInstanceOf(IdDomError)
+      expect(caught.reason).toBe('invalid-mode')
+      expect(caught.message).toMatch(/^id-dom: invalid mode '.*' \(expected 'throw' or 'null'\)$/)
+      return caught
+    }
+    expect(check(() => createDom(document, { mode })).id).toBe('')
+    expect(check(() => byId('saveBtn', HTMLButtonElement, { mode })).id).toBe('saveBtn')
+    check(() => byId.opt('saveBtn', HTMLButtonElement, { mode }))
+    check(() => tag('appMain', 'main', { mode }))
+    check(() => tag.optional('nope', 'main', { mode }))
+  })
+
+  it('an invalid mode is not passed to onError', () => {
+    const onError = vi.fn()
+    expect(() => byId('saveBtn', HTMLButtonElement, { mode: 'nul', onError })).toThrow(IdDomError)
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('valid modes are unchanged: throw, null, unset, undefined', () => {
+    for (const config of [undefined, {}, { mode: undefined }, { mode: 'throw' }]) {
+      expect(byId('saveBtn', HTMLButtonElement, config).id).toBe('saveBtn')
+      expect(() => byId('nope', HTMLButtonElement, config)).toThrow(/missing/)
+      expect(() => createDom(document, config).div('saveBtn')).toThrow(/expected HTMLDivElement/)
+    }
+    expect(byId('nope', HTMLButtonElement, { mode: 'null' })).toBeNull()
+    expect(byId('saveBtn', HTMLInputElement, { mode: 'null' })).toBeNull()
+    expect(createDom(document, { mode: 'null' }).div('saveBtn')).toBeNull()
+  })
+
+  // A typed helper names the type it declares, not the name of whatever
+  // constructor the global currently holds (a test fake, a subclass, a
+  // minified class).
+  describe('typed helpers name their declared type', () => {
+    let original
+    beforeEach(() => { original = globalThis.HTMLButtonElement })
+    afterEach(() => { globalThis.HTMLButtonElement = original })
+
+    it('with a fake global constructor', () => {
+      globalThis.HTMLButtonElement = class FakeButton {}
+
+      expect(() => dom.button('nope')).toThrow('id-dom: missing HTMLButtonElement element #nope')
+      expect(() => button('nope')).toThrow('id-dom: missing HTMLButtonElement element #nope')
+      expect(() => dom.button('debugPanel')).toThrow(
+        'id-dom: expected HTMLButtonElement for #debugPanel, got HTMLDivElement')
+    })
+
+    it('with a subclass as the global constructor', () => {
+      globalThis.HTMLButtonElement = class SubButton extends original {}
+
+      expect(() => createDom(document).button('nope')).toThrow(
+        'id-dom: missing HTMLButtonElement element #nope')
+      expect(() => button('debugPanel')).toThrow(/^id-dom: expected HTMLButtonElement for #debugPanel/)
+    })
+  })
+
+  it('byId names the Type it was given, and copes with an anonymous one', () => {
+    class MyWidget extends HTMLElement {}
+    expect(() => byId('nope', MyWidget)).toThrow('id-dom: missing MyWidget element #nope')
+
+    const Anonymous = (() => class {})()
+    expect(Anonymous.name).toBe('')
+    expect(() => byId('nope', Anonymous)).toThrow('id-dom: missing element #nope')
+    expect(() => byId('saveBtn', Anonymous)).toThrow(
+      'id-dom: expected the given Type for #saveBtn, got HTMLButtonElement')
   })
 
 })

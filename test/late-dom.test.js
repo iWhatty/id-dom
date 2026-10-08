@@ -70,7 +70,8 @@ describe.each(builds)('DOM installed after import: %s', (_name, load) => {
     const window = installDom()
     expect(m.default.div('panel')).toBeInstanceOf(window.HTMLDivElement)
     expect(m.default.byId('save', window.HTMLButtonElement).id).toBe('save')
-    expect(m.default.section.opt('app')).toBeNull()
+    expect(m.default.section.opt('nope')).toBeNull()
+    expect(() => m.default.section.opt('app')).toThrow(/expected <section>/)
     expect(() => m.default.input('save')).toThrow(/expected HTMLInputElement/)
   })
 
