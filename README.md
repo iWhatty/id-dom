@@ -42,7 +42,8 @@ import * as dom from 'id-dom'
 const saveBtn = dom.button('saveBtn')
 saveBtn.addEventListener('click', save)
 
-// Soft: absence is fine here. Returns the element or null.
+// Soft: absence is fine here. Returns the element, or null when no element
+// has the id. Still throws if #debugPanel exists but is not a <div>.
 const debug = dom.div.opt('debugPanel')
 debug?.append('hello')
 ```
@@ -71,7 +72,7 @@ const email   = input('email')
 const panel   = div('mainPanel')
 ```
 
-Optional access never throws for missing or wrong-type elements (see [What `.opt` returns](#what-opt-returns)):
+Optional access returns `null` for a missing element, and still throws for an element of the wrong type (see [What `.opt` returns](#what-opt-returns)):
 
 ```js
 const debug = dom.div.optional('debugPanel')   // default-object style
@@ -149,16 +150,16 @@ const input = inputEl.opt('title')
 
 **4. `byId` with the type**, for a one-off: `byId('saveBtn', HTMLButtonElement)` is the same check as `button('saveBtn')`.
 
-Consumer bundle of `dist/index.js` with esbuild 0.28.2 (bundle, minify, tree shaking), id-dom 0.1.0, bytes. `test/tree-shake.test.js` checks that the namespace import bundles the same code as the matching named imports.
+Consumer bundle of `dist/index.js` with esbuild 0.28.2 (bundle, minify, tree shaking), id-dom 0.2.0, bytes. `test/tree-shake.test.js` checks that the namespace import bundles the same code as the matching named imports.
 
 | Import | Minified | gzip -9 |
 | --- | ---: | ---: |
-| `{ byId }` | 2,868 | 1,330 |
-| `{ button }`, or `{ button as buttonEl }` | 3,354 | 1,567 |
-| `* as dom`, calling `dom.el` and `dom.button.opt` | 3,388 | 1,579 |
-| `{ el, button }`, the same two calls | 3,388 | 1,579 |
-| `{ button, div, el, form, input, select, byId }` | 3,581 | 1,645 |
-| `import dom` (default object), the same two calls | 4,659 | 1,989 |
+| `{ byId }` | 3,114 | 1,429 |
+| `{ button }`, or `{ button as buttonEl }` | 3,608 | 1,671 |
+| `* as dom`, calling `dom.el` and `dom.button.opt` | 3,642 | 1,685 |
+| `{ el, button }`, the same two calls | 3,642 | 1,685 |
+| `{ button, div, el, form, input, select, byId }` | 3,830 | 1,743 |
+| `import dom` (default object), the same two calls | 4,914 | 2,097 |
 
 So for the same code the default object costs about 0.4 KB gzip more than the namespace import. Whichever style you use, the namespace and named imports cost only for the helpers you call.
 
@@ -213,7 +214,7 @@ type DomMode = 'throw' | 'null'
 
 `ctx` is `{ id, root, reason, ... }`, where `reason` is one of `'invalid-id'`, `'invalid-type'`, `'invalid-tag'`, `'missing'`, `'wrong-type'`, or `'wrong-tag'`, the same as `err.reason` (see [Error handling](#error-handling)).
 
-`mode` defaults to `'throw'`. Any other value set explicitly behaves as `'null'`, so a typo such as `mode: 'nul'` makes lookups return `null`. TypeScript catches the typo; plain JS does not.
+`mode` accepts exactly `'throw'` (the default; also used when `mode` is `undefined` or `null`) and `'null'`. Since 0.2.0 any other value throws an `IdDomError` with reason `'invalid-mode'`: `createDom()` throws when it is called, `byId()` / `tag()` when they are called. It is thrown directly, not passed to `onError`. Before 0.2.0 a typo such as `mode: 'nul'` silently behaved as `'null'`.
 
 ### `byId(id, Type, config?)`
 
@@ -236,8 +237,8 @@ Behavior:
 
 - TypeScript: returns `T` in `'throw'` mode (the default), `T | null` with `mode: 'null'` and for `.optional` / `.opt`
 - valid match → returns the element
-- missing element → throws or returns `null`
-- wrong type → throws or returns `null`
+- missing element → throws or returns `null` (`.opt` returns `null`)
+- wrong type → throws or returns `null` (`.opt` throws in a `'throw'` scope)
 - invalid `id` → throws or returns `null`
 - invalid `Type` → throws or returns `null`
 - an id is used exactly as passed. A leading `#` is not stripped, since an element can have `id="#x"`; when no such element exists, the error names the id as passed and adds a hint (since 0.0.9): `id-dom: missing HTMLButtonElement element id '#saveBtn' (ids are passed without '#')`
@@ -263,8 +264,8 @@ const maybeMain2 = tag.opt('appMain', 'main')
 Behavior:
 
 - valid tag match (case-insensitive) → returns the element
-- missing element → throws or returns `null`
-- wrong tag → throws or returns `null`
+- missing element → throws or returns `null` (`.opt` returns `null`)
+- wrong tag → throws or returns `null` (`.opt` throws in a `'throw'` scope)
 - invalid `id` → throws or returns `null`
 - invalid `tagName` (not a string, empty, or containing whitespace) → throws or returns `null`. No element's tag name contains whitespace, so `' main'` could never match; since 0.0.9 it is reported as `'invalid-tag'` before the lookup, instead of as `'missing'` or `'wrong-tag'`.
 
@@ -313,9 +314,9 @@ import * as dom from 'id-dom'
 dom.button('missing') // throws IdDomError: id-dom: missing HTMLButtonElement element #missing
 ```
 
-Every failure is an `IdDomError` (exported, since 0.1.0, a subclass of `Error`) with:
+Every failure is an `IdDomError` (exported, since 0.2.0, a subclass of `Error`) with:
 
-- `reason`: `'missing'`, `'wrong-type'` (typed getters, `byId`), `'wrong-tag'` (`tag`, `main`, `section`, `small`), `'invalid-id'`, `'invalid-type'`, `'invalid-tag'`, or `'no-dom'` (a typed getter called without a DOM in a `'throw'` scope; thrown directly, not passed to `onError`; see [Server-side rendering](#server-side-rendering))
+- `reason`: `'missing'`, `'wrong-type'` (typed getters, `byId`), `'wrong-tag'` (`tag`, `main`, `section`, `small`), `'invalid-id'`, `'invalid-type'`, `'invalid-tag'`, `'invalid-mode'` (thrown directly, see [`createDom`](#createdomroot-config)), or `'no-dom'` (a typed getter called without a DOM in a `'throw'` scope; thrown directly, not passed to `onError`; see [Server-side rendering](#server-side-rendering))
 - `id`: the id as passed
 - `name`: `'IdDomError'`
 
@@ -337,20 +338,31 @@ Messages have two main shapes, the same for every getter, always with the id:
 - `id-dom: missing HTMLButtonElement element #saveBtn` (`tag()` and the tag helpers say `<main>`)
 - `id-dom: expected HTMLButtonElement for #saveBtn, got HTMLDivElement`
 
-A typed getter names the type it declares (`HTMLButtonElement` for `button`), even if the global constructor is a subclass, a test fake or a minified class (since 0.1.0; before, the constructor's own `name` was printed). `byId(id, Type)` names `Type.name`, so a class whose name your minifier mangles shows the mangled name; a `Type` without a name gives `missing element #x` and `expected the given Type for #x`. The "got" part is the found element's constructor name.
+A typed getter names the type it declares (`HTMLButtonElement` for `button`), even if the global constructor is a subclass, a test fake or a minified class (since 0.2.0; before, the constructor's own `name` was printed). `byId(id, Type)` names `Type.name`, so a class whose name your minifier mangles shows the mangled name; a `Type` without a name gives `missing element #x` and `expected the given Type for #x`. The "got" part is the found element's constructor name.
 
 #### What `.opt` returns
 
-`.opt` / `.optional` (and every call in a `'null'` scope) return `null` for **every** failure, not only a missing element: a wrong type, a wrong tag and invalid input return `null` too, without throwing or logging. So `dom.button.opt('debugPanel')` is `null` when `#debugPanel` is a `<div>`, exactly as when it does not exist. To tell the cases apart, pass `onError` (it is called in every mode, `.opt` included, with `err.reason` and `ctx.reason` set) or `warn: true`:
+`.opt` / `.optional` mean "this element may be absent". Since 0.2.0 they relax only that: an element that exists with the wrong type or tag is a bug, and they throw for it like the hard getter.
+
+| Situation (`reason`) | Hard call, `'throw'` scope (default) | `.opt`, `'throw'` scope (default) | Any call, `'null'` scope |
+| --- | --- | --- | --- |
+| element found, right type | element | element | element |
+| no element with the id (`missing`) | throws | **`null`** | `null` |
+| element of the wrong type (`wrong-type`) | throws | **throws** (was `null` before 0.2.0) | `null` |
+| element with the wrong tag (`wrong-tag`) | throws | **throws** (was `null` before 0.2.0) | `null` |
+| invalid id, `Type` or `tagName` (`invalid-id`, `invalid-type`, `invalid-tag`) | throws | **throws** (was `null` before 0.2.0) | `null` |
+| typed getter without a DOM (`no-dom`) | throws | `null` | `null` |
+| invalid `mode` (`invalid-mode`) | throws | throws | n/a (the scope cannot be created) |
+
+Every failure but `no-dom` and `invalid-mode` is passed to `onError` and, with `warn: true`, logged, before the call throws or returns `null`, in every mode and for `.opt` too. So a `.opt` miss still reaches `onError` with reason `'missing'`.
 
 ```js
-const d = createDom(document, {
-  onError: (err) => {
-    if (err.reason !== 'missing') console.error(err) // a wrong type is a bug even when optional
-  },
-})
-d.button.opt('debugPanel') // null, and onError sees reason 'wrong-type'
+const d = createDom(document, { onError: (err) => report(err) })
+d.button.opt('nope')       // null; onError sees reason 'missing'
+d.button.opt('debugPanel') // throws IdDomError 'wrong-type' if #debugPanel is a <div>
 ```
+
+A `'null'` scope (`createDom(root, { mode: 'null' })`) is the opt-in policy for "never throw": every call in it, `.opt` included, returns `null` for every failure, with `onError` to tell them apart.
 
 **Null-returning mode:**
 
@@ -390,7 +402,7 @@ When a scoped root does not support `getElementById` (an `Element`), id-dom fall
 
 ### Bundle-size note
 
-Since 0.0.8 every helper and the default `dom` object are built in calls marked `/* @__PURE__ */` (kept in `id-dom/min` too), so a bundler drops what you do not import. With esbuild (bundle, minify, gzip -9), 0.1.0: `{ byId }` is about 1.3 KB, `{ button }` about 1.6 KB, seven helpers about 1.6 KB, and the default `dom` object (every helper) about 2.0 KB; `import * as dom` costs the same as named imports of the helpers it calls; see the table under [Choosing an import style](#choosing-an-import-style). 0.0.7 shipped about 2.1 KB whatever you imported. The shared lookup machinery (validation, CSS-escape fallback, error policy, root resolution) is most of each figure.
+Since 0.0.8 every helper and the default `dom` object are built in calls marked `/* @__PURE__ */` (kept in `id-dom/min` too), so a bundler drops what you do not import. With esbuild (bundle, minify, gzip -9), 0.2.0: `{ byId }` is about 1.4 KB, `{ button }` about 1.7 KB, seven helpers about 1.7 KB, and the default `dom` object (every helper) about 2.1 KB; `import * as dom` costs the same as named imports of the helpers it calls; see the table under [Choosing an import style](#choosing-an-import-style). 0.0.7 shipped about 2.1 KB whatever you imported. The shared lookup machinery (validation, CSS-escape fallback, error policy, root resolution) is most of each figure.
 
 ### Scoped roots
 
@@ -432,7 +444,7 @@ const icon = d.svg('logoMark')
 
 ### Server-side rendering
 
-Importing id-dom without a DOM (Node without jsdom, edge runtimes) is safe. Every helper stays callable: a typed getter (`input`, `button`, ...) throws a clear "requires a DOM" error (an `IdDomError` with reason `'no-dom'`, since 0.1.0) in a `'throw'` scope and returns `null` in a `'null'` scope, and `.optional` / `.opt` return `null`. This holds for the named exports, the default `dom` object, and `createDom()` scopes (the last two since 0.0.8).
+Importing id-dom without a DOM (Node without jsdom, edge runtimes) is safe. Every helper stays callable: a typed getter (`input`, `button`, ...) throws a clear "requires a DOM" error (an `IdDomError` with reason `'no-dom'`, since 0.2.0) in a `'throw'` scope and returns `null` in a `'null'` scope, and `.optional` / `.opt` return `null` (no DOM means no element). This holds for the named exports, the default `dom` object, and `createDom()` scopes (the last two since 0.0.8).
 
 The DOM can be installed after import (a test setup, a late jsdom, hydration): since 0.0.8 id-dom reads the global `document` and the element constructors (`globalThis.HTMLButtonElement`, ...) on each lookup, so the same helpers start finding elements once they exist, and behave as above again if the DOM is removed. A root passed to `createDom(root)` or `{ root }` is always used as given.
 
