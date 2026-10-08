@@ -23,7 +23,8 @@
       "types": "./dist/types/id-dom.d.ts",
       "import": "./dist/index.min.js",
       "default": "./dist/index.min.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": false,
   "files": [
