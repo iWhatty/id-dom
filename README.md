@@ -1,11 +1,10 @@
 # id-dom
 
-[![npm](https://img.shields.io/npm/v/id-dom)](https://www.npmjs.com/package/id-dom)
-[![downloads](https://img.shields.io/npm/dm/id-dom)](https://www.npmjs.com/package/id-dom)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/id-dom)](https://bundlephobia.com/package/id-dom)
-[![license](https://img.shields.io/npm/l/id-dom)](https://github.com/iWhatty/id-dom/blob/main/LICENSE)
-[![stars](https://img.shields.io/github/stars/iWhatty/id-dom?style=social)](https://github.com/iWhatty/id-dom)
-[![types](https://img.shields.io/npm/types/id-dom)](https://www.npmjs.com/package/id-dom)
+[![npm](https://badgen.net/npm/v/id-dom)](https://www.npmjs.com/package/id-dom)
+[![downloads](https://badgen.net/npm/dm/id-dom)](https://www.npmjs.com/package/id-dom)
+[![license](https://badgen.net/static/license/AGPL-3.0%20%2B%20terms/blue)](https://github.com/iWhatty/id-dom/blob/main/LICENSE)
+[![stars](https://badgen.net/github/stars/iWhatty/id-dom)](https://github.com/iWhatty/id-dom)
+[![types](https://badgen.net/npm/types/id-dom)](https://www.npmjs.com/package/id-dom)
 
 Deterministic DOM element getters by ID. Typed, tiny, modern. A small utility for grabbing DOM references safely by `id`, with predictable behavior.
 
