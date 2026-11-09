@@ -19,8 +19,6 @@ const REASON = /** @type {const} */ ({
     INVALID_MODE: 'invalid-mode',
 })
 
-const SAFE_ID_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/
-const NEEDS_START_ESCAPE_RE = /^(?:\d|-\d)/
 const TAG_NAME_RE = /^[^\t\n\f\r ]+$/
 
 /**
@@ -219,51 +217,16 @@ function hasQuerySelector(v) {
 }
 
 /**
- * Minimal CSS.escape fallback for environments where CSS.escape is missing.
- * We only need to safely build `#${id}` selectors.
+ * Quote an id for an attribute selector. Only backslash, double quote and
+ * line breaks need escaping inside a CSS string, so odd-but-valid ids (`1a`,
+ * `a.b`, `-`) need no identifier escaping and no `CSS.escape`.
  *
  * @param {string} id
  * @returns {string}
  */
-function cssEscape(id) {
-    const s = String(id)
-
-    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-        return CSS.escape(s)
-    }
-
-    if (!NEEDS_START_ESCAPE_RE.test(s) && SAFE_ID_RE.test(s)) return s
-
-    let out = ''
-    for (let i = 0; i < s.length;) {
-        const cp = s.codePointAt(i)
-        const ch = String.fromCodePoint(cp)
-
-        const isAsciiSafe =
-            (cp >= 48 && cp <= 57) || // 0-9
-            (cp >= 65 && cp <= 90) || // A-Z
-            (cp >= 97 && cp <= 122) || // a-z
-            cp === 95 || // _
-            cp === 45 // -
-
-        const next = s.codePointAt(i + 1)
-        const startsWithDigit = cp >= 48 && cp <= 57
-        const startsWithDashDigit = cp === 45 && s.length > 1 && next >= 48 && next <= 57
-        const isLoneDash = cp === 45 && s.length === 1 // `#-` is not a valid ID selector
-        const needsStartEscape = i === 0 && (startsWithDigit || startsWithDashDigit || isLoneDash)
-
-        if (!needsStartEscape && (isAsciiSafe || cp >= 0x00a0)) {
-            out += ch
-        } else if (i === 0 && (startsWithDashDigit || isLoneDash)) {
-            out += '\\-'
-        } else {
-            out += `\\${cp.toString(16).toUpperCase()} `
-        }
-
-        i += ch.length
-    }
-
-    return out
+function quoteAttr(id) {
+    return String(id).replace(/["\\\n\r\f]/g, (c) =>
+        c === '"' || c === '\\' ? '\\' + c : '\\' + c.charCodeAt(0).toString(16) + ' ')
 }
 
 /**
@@ -293,7 +256,7 @@ function getById(root, id) {
     if (hasGetElementById(root)) return root.getElementById(id)
 
     if (hasQuerySelector(root)) {
-        const el = root.querySelector(`#${cssEscape(id)}`)
+        const el = root.querySelector(`[id="${quoteAttr(id)}"]`)
         return isElementNode(el) ? el : null
     }
 

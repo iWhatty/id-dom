@@ -2,6 +2,10 @@
 
 What changed for people using the package, per release. Entries before 0.0.6 were reconstructed from git history.
 
+## Unreleased
+
+- Lookups from an element root now find ids such as `1a`, `a.b` and `a:b` in DOM implementations whose selector engine mishandles CSS escapes.
+
 ## 0.2.0 — 2026-10-08
 
 - `IdDomError`, exported, with `reason` (`'missing'`, `'wrong-type'`, `'wrong-tag'`, `'invalid-id'` and others) and `id`. `onError` receives it.

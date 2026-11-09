@@ -226,12 +226,12 @@ describe('id-dom', () => {
     expect(createDom(container).div(id)).toBe(target)
   })
 
-  it('the CSS.escape fallback escapes a lone "-" as CSS.escape does', () => {
+  it('Element roots quote ids into an attribute selector', () => {
     const selectors = []
     const root = { querySelector: (sel) => { selectors.push(sel); return null } }
 
-    expect(createDom(root, { mode: 'null' }).div('-')).toBeNull()
-    expect(selectors).toEqual(['#\\-'])
+    expect(createDom(root, { mode: 'null' }).div('a"\\b\n')).toBeNull()
+    expect(selectors).toEqual(['[id="a\\"\\\\b\\a "]'])
   })
 
   it('tag can validate non-HTMLElement elements if tag matches', () => {
